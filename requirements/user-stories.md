@@ -1,14 +1,16 @@
 # Strategic Portfolio Management user stories
 
-**Status:** Proposed requirements for product review. **Source:** [solution overview](../docs/solution-overview.md), [canonical model v1.0](../reconciled-core/docs/canonical-domain-model-v1.0.md), and [domain decisions v1.0](../reconciled-core/docs/domain-decisions-v1.0.md). These stories describe intended behavior; they are not a claim that the application is implemented.
+**Status:** Proposed requirements for product review; US-001–US-004 selected by the product owner as the first build priority on 24 October 2026. **Source:** [solution overview](../docs/solution-overview.md), [canonical model v1.1](../reconciled-core/docs/canonical-domain-model-v1.1.md), and [domain decisions v1.0](../reconciled-core/docs/domain-decisions-v1.0.md). These stories describe intended behavior; they are not a claim that the application is implemented.
 
 **Phase key:** **Core MVP** = native M01–M06 plus essential Platform. **Extension** = M07–M12 capability, implemented natively or integrated according to each tenant's source-authority policy. Each story has one primary write-owning module; cross-module references do not transfer write ownership.
+
+**Build order:** US-001–US-004 are **P0 / Increment 1: strategic intent and portfolio context**. All other Core MVP stories follow this increment; extension stories remain later. P0 does not waive any acceptance criterion. See the [Increment 1 scope and delivery gates](build-increment-1.md).
 
 ## Strategy and portfolio
 
 ### US-001 — Define strategic intent
 
-**Role:** Strategy leader · **Owner:** M01 · **Phase:** Core MVP  
+**Role:** Strategy leader · **Owner:** M01 · **Phase:** Core MVP · **Priority:** P0 / Increment 1  
 As a strategy leader, I want to define a strategy and its objectives with accountable owners and a time horizon, so that portfolio choices can be traced to approved intent.
 
 **Acceptance criteria**
@@ -19,7 +21,7 @@ As a strategy leader, I want to define a strategy and its objectives with accoun
 
 ### US-002 — Define and observe outcomes
 
-**Role:** Strategy leader · **Owner:** M01 · **Phase:** Core MVP  
+**Role:** Strategy leader · **Owner:** M01 · **Phase:** Core MVP · **Priority:** P0 / Increment 1  
 As a strategy leader, I want measurable outcomes and dated observations, so that I can see whether investments contribute to intended results.
 
 **Acceptance criteria**
@@ -30,7 +32,7 @@ As a strategy leader, I want measurable outcomes and dated observations, so that
 
 ### US-003 — Maintain portfolio structure
 
-**Role:** Portfolio office · **Owner:** M02 · **Phase:** Core MVP  
+**Role:** Portfolio office · **Owner:** M02 · **Phase:** Core MVP · **Priority:** P0 / Increment 1  
 As a portfolio office analyst, I want to maintain portfolios, hierarchy, and investment categories, so that every investment has a governed place in the portfolio landscape.
 
 **Acceptance criteria**
@@ -41,7 +43,7 @@ As a portfolio office analyst, I want to maintain portfolios, hierarchy, and inv
 
 ### US-004 — Explain strategic alignment
 
-**Role:** Portfolio office · **Owner:** M02 · **Phase:** Core MVP  
+**Role:** Portfolio office · **Owner:** M02 · **Phase:** Core MVP · **Priority:** P0 / Increment 1  
 As a portfolio office analyst, I want to link portfolios to strategic objectives and explain the contribution, so that selection discussions have explicit strategic context.
 
 **Acceptance criteria**
