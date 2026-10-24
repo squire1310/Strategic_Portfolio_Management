@@ -50,15 +50,19 @@ const one = async (client, sql, args, missing = 'Record not found') => {
 };
 
 export function createStore({ connectionString, tenantId, actorId }) {
-  uuid(tenantId, 'tenantId'); uuid(actorId, 'actorId');
+  if (tenantId != null) uuid(tenantId, 'tenantId');
+  if (actorId != null) uuid(actorId, 'actorId');
+  if ((tenantId == null) !== (actorId == null)) throw new Error('Tenant and actor defaults must be supplied together');
   if (!connectionString) throw new Error('SPM_DATABASE_URL is required');
   const pool = new Pool({ connectionString, max: 5, statement_timeout: 5000, idleTimeoutMillis: 10000 });
 
-  async function transaction(work, { write = false } = {}) {
+  async function transaction(work, { write = false, context } = {}) {
+    const identity = context || { tenantId, actorId };
+    uuid(identity.tenantId, 'tenantId'); uuid(identity.actorId, 'actorId');
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query("SELECT set_config('app.tenant_id',$1,true), set_config('app.actor_id',$2,true), set_config('app.request_id',$3,true)", [tenantId, actorId, randomUUID()]);
+      await client.query("SELECT set_config('app.tenant_id',$1,true), set_config('app.actor_id',$2,true), set_config('app.request_id',$3,true)", [identity.tenantId, identity.actorId, randomUUID()]);
       const membership = await client.query(`SELECT member_role FROM platform.tenant_member
         WHERE tenant_id=platform.current_tenant() AND principal_id=platform.current_actor() AND active`);
       if (!membership.rowCount) throw new AppError(403, 'Active tenant membership required');
@@ -73,7 +77,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
     } finally { client.release(); }
   }
 
-  async function command(name, body) {
+  async function command(name, body, context) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400, 'JSON object required');
     return transaction(async client => {
       switch (name) {
@@ -209,7 +213,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
             [uuid(body.portfolioId, 'portfolioId'), uuid(body.objectiveId, 'objectiveId'), requiredText(body.contribution, 'contribution')]);
         default: throw new AppError(404, 'Unknown command');
       }
-    }, { write: true });
+    }, { write: true, context });
   }
 
   const tables = {
@@ -219,16 +223,16 @@ export function createStore({ connectionString, tenantId, actorId }) {
     investments: 'm05_investment.investment', memberships: 'm02_portfolio.portfolio_membership',
     alignments: 'm02_portfolio.portfolio_objective'
   };
-  async function workspace() {
+  async function workspace(context) {
     return transaction(async client => {
       const data = {};
       for (const [key, table] of Object.entries(tables)) {
         data[key] = (await client.query(`SELECT * FROM ${table} WHERE tenant_id=platform.current_tenant() ORDER BY 1,2 LIMIT 500`)).rows;
       }
       return data;
-    });
+    }, { context });
   }
-  async function history(schema, table, id) {
+  async function history(schema, table, id, context) {
     const full = `${schema}.${table}`;
     if (!Object.values(tables).includes(full)) throw new AppError(404, 'Unknown entity type');
     uuid(id, 'id');
@@ -239,7 +243,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const audit = (await client.query(`SELECT occurred_at,operation,actor_id,old_row,new_row FROM platform.audit_event
         WHERE tenant_id=platform.current_tenant() AND schema_name=$1 AND table_name=$2 AND entity_id=$3 ORDER BY occurred_at`, [schema, table, id])).rows;
       return { revisions, audit };
-    });
+    }, { context });
   }
   return { command, workspace, history, close: () => pool.end() };
 }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createStore } from '../src/domain.js';
 import { createHttpServer } from '../src/server.js';
+import { createAuth, hashPassword } from '../src/auth.js';
 
 const tenantOne = '00000000-0000-4000-8000-000000000001';
 const actorOne = '00000000-0000-4000-8000-000000000101';
@@ -14,18 +15,36 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
   const store = createStore({ connectionString, tenantId: tenantOne, actorId: actorOne });
   const other = createStore({ connectionString, tenantId: tenantTwo, actorId: actorTwo });
   const wrongActor = createStore({ connectionString, tenantId: tenantOne, actorId: actorTwo });
-  const server = createHttpServer(store);
+  const auth = createAuth([
+    { username: 'pilot-one', displayName: 'Pilot one', tenantId: tenantOne, actorId: actorOne,
+      passwordHash: hashPassword('integration-test-password') },
+    { username: 'pilot-two', displayName: 'Pilot two', tenantId: tenantTwo, actorId: actorTwo,
+      passwordHash: hashPassword('another-test-password') }
+  ]);
+  const server = createHttpServer(store, { auth });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
+  const anonymous = await fetch(base, { redirect: 'manual' });
+  assert.equal(anonymous.status, 303);
+  assert.equal(anonymous.headers.get('location'), '/login');
+  const denied = await fetch(`${base}/api/workspace`);
+  assert.equal(denied.status, 401);
+  const login = await fetch(`${base}/api/login`, { method: 'POST',
+    headers: { origin: base, 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'pilot-one', password: 'integration-test-password' }) });
+  assert.equal(login.status, 200);
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  assert.match(login.headers.get('set-cookie'), /HttpOnly; SameSite=Strict/);
+  const get = path => fetch(`${base}${path}`, { headers: { cookie } });
   const suffix = randomUUID().slice(0, 8);
   const post = async (command, body) => {
-    const response = await fetch(`${base}/api/commands/${command}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetch(`${base}/api/commands/${command}`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base, cookie }, body: JSON.stringify(body) });
     return { status: response.status, body: await response.json() };
   };
   try {
     let strategy, objective, outcome, measure, observation, portfolio, investment;
     await t.test('local browser assets are served without external dependencies', async () => {
-      const page = await fetch(base);
+      const page = await get('/');
       assert.equal(page.status, 200);
       const markup = await page.text();
       assert.match(markup, /Define strategic intent/);
@@ -59,11 +78,11 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
       assert.equal(r.status, 201); assert.equal(r.body.row_version, 2);
       r = await post('observation-correction', { id: observation.id, expectedVersion: 1, value: 50, evidenceUri: 'synthetic:stale' });
       assert.equal(r.status, 409);
-      const history = await (await fetch(`${base}/api/history/m01_strategy/measure_observation/${observation.id}`)).json();
+      const history = await (await get(`/api/history/m01_strategy/measure_observation/${observation.id}`)).json();
       assert.equal(history.revisions.length, 2);
       assert.equal(history.audit.length, 2);
       assert.equal(history.revisions[0].actor_id, actorOne);
-      const objectiveHistory = await (await fetch(`${base}/api/history/m01_strategy/objective/${objective.id}`)).json();
+      const objectiveHistory = await (await get(`/api/history/m01_strategy/objective/${objective.id}`)).json();
       assert.equal(objectiveHistory.revisions.length, 2);
     });
 
@@ -97,15 +116,15 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
       assert.equal(r.status, 201); const alignment = r.body;
       r = await post('alignment', { portfolioId: portfolio.id, objectiveId: objective.id, contribution: 'Revised explanation' });
       assert.equal(r.status, 201); assert.equal(r.body.id, alignment.id);
-      const history = await (await fetch(`${base}/api/history/m02_portfolio/portfolio_objective/${alignment.id}`)).json();
+      const history = await (await get(`/api/history/m02_portfolio/portfolio_objective/${alignment.id}`)).json();
       assert.equal(history.audit.length, 2);
-      const workspace = await (await fetch(`${base}/api/workspace`)).json();
+      const workspace = await (await get('/api/workspace')).json();
       assert.ok(workspace.alignments.some(row => row.id === alignment.id && row.contribution === 'Revised explanation'));
       r = await post('portfolio-retire', { id: portfolio.id, expectedVersion: 1 });
       assert.equal(r.status, 201); assert.equal(r.body.status, 'retired');
       r = await post('category-retire', { id: category.id, expectedVersion: 1 });
       assert.equal(r.status, 201); assert.equal(r.body.active, false);
-      const retiredMemberships = await (await fetch(`${base}/api/workspace`)).json();
+      const retiredMemberships = await (await get('/api/workspace')).json();
       assert.ok(retiredMemberships.memberships.some(row => row.portfolio_id === portfolio.id && row.investment_id === investment.id));
     });
 
@@ -114,11 +133,20 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
       const foreignObjective = await other.command('objective', { strategyId: foreign.id, code: `foreign_obj_${suffix}`, title: 'Foreign objective', validFrom: '2026-01-01', validUntil: '2030-01-01' });
       const r = await post('alignment', { portfolioId: portfolio.id, objectiveId: foreignObjective.id, contribution: 'Should fail' });
       assert.equal(r.status, 400);
-      const workspace = await (await fetch(`${base}/api/workspace`)).json();
+      const workspace = await (await get('/api/workspace')).json();
       assert.ok(!workspace.objectives.some(row => row.id === foreignObjective.id));
       await assert.rejects(() => wrongActor.workspace());
-      const blocked = await fetch(`${base}/api/workspace`, { headers: { origin: 'https://example.org' } });
+      const blocked = await fetch(`${base}/api/workspace`, { headers: { cookie, origin: 'https://example.org' } });
       assert.equal(blocked.status, 403);
+      const csrf = await fetch(`${base}/api/commands/strategy`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{}' });
+      assert.equal(csrf.status, 403);
+      const secondLogin = await fetch(`${base}/api/login`, { method: 'POST', headers: { origin: base, 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'pilot-two', password: 'another-test-password' }) });
+      assert.equal(secondLogin.status, 200);
+      const secondCookie = secondLogin.headers.get('set-cookie').split(';')[0];
+      const secondWorkspace = await (await fetch(`${base}/api/workspace`, { headers: { cookie: secondCookie } })).json();
+      assert.ok(secondWorkspace.strategies.some(row => row.id === foreign.id));
+      assert.ok(!secondWorkspace.strategies.some(row => row.id === strategy.id));
     });
   } finally {
     await new Promise(resolve => server.close(resolve));

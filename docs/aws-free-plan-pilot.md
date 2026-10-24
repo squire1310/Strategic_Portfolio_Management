@@ -4,6 +4,8 @@
 
 The product owner has created a standalone AWS Free-plan account with an initial **USD 100 credit balance**. The account identifier is held outside this public repository. The first environment is non-production, uses synthetic data, and is located in **Europe (London), `eu-west-2`**. A shared database is acceptable. A custom web address and external application identity provider are deferred.
 
+The [Increment 1 pilot cost plan](aws-pilot-cost-plan.md) now gives a bounded Single-AZ EC2 option and a conservative monthly planning allowance. Interim local-account authentication is implemented in the application; account-specific cost and eligibility checks remain a deployment gate.
+
 ## What this changes
 
 The [production reference architecture](physical-architecture-aws.md) is a target, not the first deployment bill of materials. Its always-running ALB, Fargate services, Multi-AZ RDS, WAF, network egress and supporting resources must not be provisioned as a group against the USD 100 credit without an account-specific eligibility check and priced estimate. AWS's current [RDS Free Tier documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/) limits its free-plan database option to **Single-AZ**; that is suitable only for a disposable pilot, not the production resilience target. AWS's [Free-plan terms](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/free-tier-plans.html) say the plan ends after six months or when credits are exhausted, whichever comes first, and some services/features are unavailable.

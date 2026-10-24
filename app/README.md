@@ -1,15 +1,30 @@
 # Increment 1 application
 
-This is a **local-only development slice** for US-001–US-004. It exposes strategy, objective, outcome, measure, portfolio, category, candidate investment, membership and alignment workflows. It uses the existing tenant-scoped PostgreSQL schema plus [V007](../reconciled-core/migrations/V007__strategic_intent.sql). It is **not** the public AWS pilot or a production service.
+This is a **development slice** for US-001–US-004. It exposes strategy, objective, outcome, measure, portfolio, category, candidate investment, membership and alignment workflows. It uses the existing tenant-scoped PostgreSQL schema plus [V007](../reconciled-core/migrations/V007__strategic_intent.sql). It has an interim local-account login but is **not** deployed to AWS or production ready.
 
 ## Run locally
 
 1. Install Node.js 22+, pnpm 11 and PostgreSQL 16. Create a disposable database. Apply [V001–V007](../reconciled-core/migrations/) in order as the database owner, then run `app/test/seed.sql` **only in that disposable database** if you want the synthetic test tenants. The seed creates a known CI-only password; do not use it for a persistent or reachable database.
 2. For ordinary local use, create your own PostgreSQL login with a private password and grant it `spm_app`. The login must not own the tables or have `BYPASSRLS`. Provision a synthetic tenant, principal and active `contributor` membership as database owner, or use the disposable CI seed.
-3. Set `SPM_DATABASE_URL` to that non-owner login's connection URL, and `SPM_DEV_TENANT_ID` / `SPM_DEV_ACTOR_ID` to the synthetic membership UUIDs. Use your shell's environment mechanism; keep credentials out of files committed to GitHub.
-4. In `app/`, run `pnpm install --frozen-lockfile`, then `pnpm start`. Open `http://127.0.0.1:3000`.
+3. Set `SPM_DATABASE_URL` to that non-owner login's connection URL. Configure `SPM_LOCAL_USERS_JSON` as an array of local accounts. Each account needs a unique lowercase `username`, `displayName`, `tenantId`, `actorId` and `passwordHash`. The actor must have an active membership in that tenant. Use a password of at least 16 characters and generate its scrypt hash with `node src/hash-password.js`, passing the password through standard input. Keep the password and account JSON out of GitHub. For the disposable CI seed, the two tenant/actor pairs are in [seed.sql](test/seed.sql).
+4. In `app/`, run `pnpm install --frozen-lockfile`, then `pnpm start`. Open `http://127.0.0.1:3000` and sign in.
 
-The server binds to loopback and accepts only a local host and origin. It has **no user login**. The test actor comes from local environment variables; never bind this build to a public address or put real data into it. A later public pilot must add application authentication before enabling tenant commands. No external identity provider is required to develop this slice locally.
+The server binds to loopback by default. A sample PowerShell setup for the **disposable synthetic seed** is:
+
+```powershell
+$pw = Read-Host 'Pilot password' -AsSecureString
+$plain = [System.Net.NetworkCredential]::new('', $pw).Password
+$hash = $plain | node src/hash-password.js
+Remove-Variable plain,pw
+$env:SPM_LOCAL_USERS_JSON = @(@{
+  username = 'pilot-one'; displayName = 'Pilot one'
+  tenantId = '00000000-0000-4000-8000-000000000001'
+  actorId = '00000000-0000-4000-8000-000000000101'
+  passwordHash = $hash
+}) | ConvertTo-Json -Compress
+```
+
+The server stores opaque sessions in memory for eight hours; a restart signs users out. Login failures are temporarily limited in memory. Cookies are HTTP-only and SameSite Strict, and mutating requests require the expected `Origin`. Each request derives tenant and actor from its session; the database still checks active tenant membership and role. Do not put real tenant data into this disposable pilot. Before internet exposure, provide an HTTPS reverse proxy, a chosen temporary hostname, a firewall that blocks direct access to the Node port and private PostgreSQL, and set `SPM_PUBLIC_ORIGIN` to that exact HTTPS origin. Public-origin mode also requires the proxy to set `X-Forwarded-Proto: https`. This is an interim single-instance mechanism, not the production identity design.
 
 ## Interface design
 
@@ -25,7 +40,7 @@ The candidate investment command creates **identity only** for US-003 membership
 
 ## Validation and remaining work
 
-`pnpm test` runs the HTTP/database integration suite when `SPM_TEST_DATABASE_URL` points to a disposable, migrated database with `app/test/seed.sql` applied. Without that variable, the suite is skipped. The [CI workflow](../.github/workflows/validate-increment-1.yml) runs it against PostgreSQL 16 under a non-owner login.
+`pnpm test` always runs login and UI asset tests. It also runs the HTTP/database integration suite when `SPM_TEST_DATABASE_URL` points to a disposable, migrated database with `app/test/seed.sql` applied. Without that variable, only the database suite is skipped. The [CI workflow](../.github/workflows/validate-increment-1.yml) runs it against PostgreSQL 16 under a non-owner login.
 
-This slice still needs a chosen interim login mechanism, richer role permissions, upload/source contracts, accessibility review, performance checks, and the production security/recovery controls in the [requirements](../requirements/build-increment-1.md). The M06 risk entities in canonical model v1.1 are outside Increment 1 and not in V007.
+This slice still needs account provisioning and recovery procedures, richer role permissions, upload/source contracts, accessibility review, performance checks, and the production security/recovery controls in the [requirements](../requirements/build-increment-1.md). The M06 risk entities in canonical model v1.1 are outside Increment 1 and not in V007.
 

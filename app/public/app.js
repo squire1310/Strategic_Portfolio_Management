@@ -1,5 +1,9 @@
 const message = document.querySelector('#message');
 let workspace = {};
+document.querySelector('#sign-out').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.assign('/login');
+});
 const entityTypes = {
   strategies: ['m01_strategy', 'strategy'], objectives: ['m01_strategy', 'objective'],
   outcomes: ['m01_strategy', 'outcome'], measures: ['m01_strategy', 'measure'],
@@ -121,6 +125,11 @@ function render() {
   renderTable('alignments-list', 'alignments', [['Portfolio', 'portfolio_id'], ['Objective', 'objective_id'], ['Strategy', 'strategy_of_objective'], ['Contribution', 'contribution']]);
 }
 async function load() {
+  const sessionResponse = await fetch('/api/session');
+  if (sessionResponse.status === 401) { window.location.assign('/login'); return; }
+  if (!sessionResponse.ok) throw new Error('Could not load session');
+  const user = await sessionResponse.json();
+  document.querySelector('#signed-in-user').textContent = `Signed in as ${user.displayName}.`;
   const response = await fetch('/api/workspace');
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || 'Could not load records');

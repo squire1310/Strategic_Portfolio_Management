@@ -1,0 +1,46 @@
+# Increment 1 AWS London pilot cost plan
+
+**Prepared:** 24 October 2026 · **Status:** Planning estimate; no resources deployed or account-specific prices verified.
+
+This plan is for a disposable, synthetic-data pilot of US-001–US-004 in `eu-west-2`. The owner reported a standalone AWS Free-plan account with USD 100 of credit. That credit is a planning limit, not a monthly budget. The target account's balance, expiry, service eligibility, quotas and actual London quote must be checked in its own billing console before deployment. The connected AWS tool available during preparation did **not** resolve to the owner's stated account, so it was not used to inspect or change that account.
+
+## Pilot shape
+
+| Component | Pilot choice | Reason and limit |
+| --- | --- | --- |
+| Runtime and database | One eligible EC2 `t3.small` Linux instance in London, running Node.js and PostgreSQL 16 | 2 GiB RAM is a safer starting point than 1 GiB for both processes. Single instance and Single-AZ: disposable pilot only. Check AMI and instance eligibility in the account. |
+| Storage | One encrypted 20 GiB gp3 EBS volume; PostgreSQL data and app on that volume | Bound storage, no second always-on database bill. Data is synthetic. Snapshot only when needed for pilot recovery rehearsal. |
+| Network | One public IPv4 address; security group admits only HTTPS (and HTTP for certificate issuance/redirect if required) | No ALB, NAT gateway, RDS proxy or VPC endpoints in this pilot. Node and PostgreSQL ports are closed to the internet. |
+| HTTPS | Temporary hostname, TLS reverse proxy on the instance, and `SPM_PUBLIC_ORIGIN` set to that exact HTTPS origin | A browser-trusted HTTPS hostname is needed before a usable public app link; the final domain can wait. |
+| Access | Interim application accounts and server-side sessions | Provision only synthetic pilot users. No external identity provider. Sessions are in one process and are lost on restart. |
+| Operations | Small CloudWatch log allowance, EC2 and EBS monitoring, manual stop/teardown | No production availability or recovery promise. Avoid paid monitoring extras unless priced first. |
+
+This differs intentionally from the [production reference architecture](physical-architecture-aws.md), which uses ALB, ECS and RDS Multi-AZ. The pilot does not establish that architecture's resilience, security or recovery properties.
+
+## Conservative planning allowance
+
+The table is a **budgeting allowance**, not an AWS price quote. It uses 720 hours for an always-on 30-day month, a deliberately padded EC2 rate of USD 0.030/hour and gp3 allowance of USD 0.12/GB-month. The actual London rates, Free-plan credit treatment, tax, transfer and CPU-credit charges remain to be verified. AWS [EC2 pricing](https://aws.amazon.com/ec2/pricing/on-demand/) and [EBS pricing](https://aws.amazon.com/ebs/pricing/) vary by Region and usage. AWS lists a [public IPv4 price](https://aws.amazon.com/vpc/pricing/) of USD 0.005 per address-hour; Free Tier treatment must be checked for this account.
+
+| Line | 30-day arithmetic | Allowance (USD) |
+| --- | ---: | ---: |
+| EC2 `t3.small` compute | 720 h × $0.030/h | 21.60 |
+| 20 GiB gp3 storage | 20 GiB × $0.12/GiB-month | 2.40 |
+| One public IPv4 | 720 h × $0.005/h | 3.60 |
+| Snapshot allowance | Provisional | 2.00 |
+| Logs, data transfer and small variable usage | Provisional | 5.00 |
+| **Subtotal** | | **34.60** |
+| **30% contingency** | | **10.38** |
+| **Planning ceiling** | | **44.98/month** |
+
+At the same usage profile, a **14-day always-on demonstration** is roughly USD 16.14 before contingency or **USD 20.98 with 30% contingency**. Stopping EC2 ends compute usage, but EBS, snapshots and an allocated public IPv4 can continue to accrue costs. Terminate or release all pilot resources after the demonstration. These figures exclude tax and unexpected traffic or burst CPU charges; the account-specific calculator estimate is the go/no-go number.
+
+## Spend controls and deployment gate
+
+1. In the **intended account**, confirm Free-plan state, credit balance and expiry; check `t3.small`, the chosen AMI, gp3 and public IPv4 eligibility in `eu-west-2`. [AWS Free Tier guidance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-free-tier-usage.html) lists eligible instance families but account eligibility still needs verification.
+2. Create an account-wide AWS cost budget of **USD 45/month**, with email alerts at USD 20, USD 30 and USD 40 actual or forecast spend. Also enable Free Tier and credit-balance alerts. [AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) data may update only a few times daily, so alerts are not a hard spending cap.
+3. Produce an AWS Pricing Calculator estimate in `eu-west-2` for the exact selected instance, EBS size, IPv4, snapshot and expected transfer. Confirm it stays within the USD 45/month planning ceiling and the remaining credit for the proposed pilot length. If not, shorten runtime or revise the design before deployment.
+4. Provision only synthetic tenants and pilot accounts. Keep PostgreSQL on loopback, block ports 3000 and 5432 from the internet, terminate TLS at the reverse proxy and retain application login. Use an IAM role with MFA for administration; no account access keys in the repo.
+5. Run the four story journeys and a restore/teardown rehearsal. Record start and end dates, actual daily spend, resource inventory and the person responsible for stopping the pilot.
+
+The current application is not deployed. The next external input is a temporary HTTPS hostname and access to the **intended** AWS account through a scoped role/session. Neither the account ID nor credentials belong in this public repository.
+
