@@ -1,7 +1,9 @@
 # Strategic Portfolio Management non-functional requirements
 
-**Version:** 0.1 · **Status:** Proposed for product and tenant review · **Prepared:** 24 October 2026  
+**Version:** 0.2 · **Status:** Proposed for product and tenant review · **Prepared:** 24 October 2026  
 **Scope:** Hybrid SPM product, including native M01–M06, essential platform services and any enabled M07–M12 modules or integrations. These requirements define qualities of the service; [functional requirements](functional-requirements.md) define its behaviour.
+
+**Hosting location supplied by the product owner:** The AWS production data plane is to be hosted in Europe (London), `eu-west-2`, interpreting “UK South” as the AWS London Region. This fixes the Region for the [AWS physical architecture](../docs/physical-architecture-aws.md); global services and third-party processing still need a separate residency review.
 
 ## Source and authority
 
@@ -20,7 +22,7 @@ The service owner and operations owner shall record the following in a versioned
 | Availability and recovery | Monthly availability target, RTO, RPO, disaster-recovery test frequency | Targets depend on criticality and architecture. |
 | Workload and latency | Named critical journeys/APIs, peak users and request mix, data volume, page/API latency percentiles | A response target needs a repeatable load profile. |
 | Support | Coverage hours, alert routing, acknowledgement and escalation times | Depends on tier and operating model. |
-| Data and records | Classification, residency, retention schedule, lawful basis, disposal exceptions and accountable approver | D10 prohibits permissive defaults; legal and tenant policy differ. |
+| Data and records | `eu-west-2` production location; classification, global-service data flows, retention schedule, lawful basis, disposal exceptions and accountable approver | The AWS Region is fixed, but D10 still requires accountable acceptance of the complete data and records policy. |
 | Accessibility and channels | User groups, public/internal channels, assisted digital needs and supported browsers | Public-facing Defra rules are conditional. |
 
 ## Requirements
@@ -95,7 +97,7 @@ Each **Evidence** entry is the minimum verification method. Numeric values label
 | --- | --- | --- | --- | --- |
 | SPM-NFR-028 | Personal data shall be minimised; the accountable organisation shall complete and approve a data protection impact assessment when required before processing begins. | Conditional: personal data and assessment duty | Data inventory, DPIA decision and field-level minimisation review. | DEFRA NFR-DAT-01 · Data protection + Tenant owner |
 | SPM-NFR-029 | Records shall be retained and disposed of according to the approved tenant schedule, with legal holds and required decision evidence preserved or lawfully redacted. **Periods pending.** | All | Retention policy, disposal test and hold/redaction audit trail. | DEFRA NFR-DAT-02; D07, D10 · Records owner + Platform |
-| SPM-NFR-030 | Data, backups and operational telemetry shall stay in the approved residency locations for the tenant and classification. **For a Defra OFFICIAL deployment, verify the current UK-region rule.** | All; Defra rule conditional | Infrastructure, backup and observability location review. | DEFRA NFR-DAT-03; D10 · Platform + Tenant owner |
+| SPM-NFR-030 | Production transactional data, evidence, event queues, backups and operational telemetry shall be configured in AWS Europe (London), `eu-west-2`. Global DNS, identity, CI and provider metadata flows shall be separately assessed and recorded. **For a Defra OFFICIAL deployment, verify the current UK-region rule.** | All; Defra rule conditional | Infrastructure, backup, observability and external-flow location review. | DEFRA NFR-DAT-03; D10; product-owner hosting direction · Platform + Tenant owner |
 | SPM-NFR-031 | Quality rules for data used in decisions, commitments and official reporting shall define completeness, validity, timeliness and reconciliation thresholds, and report breaches. **Thresholds pending.** | All relevant data feeds | Data-quality dashboard and seeded-defect test. | DEFRA NFR-DAT-04; D08 · Data owner |
 
 ### Sustainability
