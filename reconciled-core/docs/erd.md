@@ -31,7 +31,8 @@ erDiagram
               uuid strategy_id FK }
   OUTCOME { uuid tenant_id PK
             uuid id PK
-            uuid objective_id FK }
+            uuid objective_id FK
+            string contribution_rationale }
   MEASURE { uuid tenant_id PK
             uuid id PK
             uuid outcome_id FK }
