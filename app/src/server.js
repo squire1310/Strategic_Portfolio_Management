@@ -8,7 +8,7 @@ const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const files = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
-  '/style.css': ['style.css', 'text/css; charset=utf-8']
+  '/govuk.css': ['govuk.css', 'text/css; charset=utf-8']
 };
 
 function respond(res, status, body, contentType = 'application/json; charset=utf-8') {
