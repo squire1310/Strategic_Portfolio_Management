@@ -9,18 +9,18 @@ The prior v0.3 answer was unavailable as text. The product owner approved the ne
 - Composite tenant keys and FKs prevent cross-tenant references; RLS policies require an active member in the selected tenant.
 - Mutable roots have optimistic row versions, business-valid ranges, trigger-written system-time revisions, audit rows and outbox events.
 - Submitted case revisions, selection recommendations, investment decisions, commitments, and amendments cannot be updated or deleted.
-- Investment approval state requires a matching approving decision by a deferred constraint trigger. Decision makers must chair the body or hold an effective delegation for the subject scope.
-- Commitments and amendments require an approving decision for the same investment. A baseline approval requires a decision whose subject is that baseline.
+- Investment approval state requires a matching approving decision by a deferred constraint trigger. V006 also checks active approver role, actor identity, independence, body mandate and delegation amount/currency for monetary approvals.
+- Commitments and amendments require an approving decision for the same investment. V006 bounds initial funding commitments by the monetary decision; amendment arithmetic remains service work. A baseline approval requires a decision whose subject is that baseline.
 - Approved baseline snapshots cannot be edited; a successor with the same business-valid interval closes the earlier baseline's recorded interval. Partial overlap is rejected pending an explicit interval-splitting design. Exclusion constraints prevent concurrent approved interpretations over the same valid time.
 - Inbound messages have a unique source/message key. External identity mappings have a unique source/object/external key. Outbox events are written in the source transaction.
 
 ## Service-level rules still required
 
 - The API must authenticate the identity and set transaction-local tenant/actor values. Do not expose arbitrary SQL or let untrusted clients choose those settings. RLS is defense in depth, not the complete authorization system.
-- Lifecycle transition order, quorum, delegated monetary limits, separation of duties, expired membership, and evidence sufficiency need command-service policy. The decision trigger checks delegation scope/time but not an amount threshold.
-- The scoring formula, direction transformation, aggregate-score calculation, tie-breaking, and portfolio constraints need a versioned policy. SQL now ensures active model weights total 1, completed assessments have one bounded score per criterion, and recommendations use locked scenarios with frozen evidence.
+- Lifecycle transition order, committee voting, approval conditions, all separation-of-duties roles, and evidence sufficiency need command-service policy. V006 rejects decisions requiring unsupported quorum and checks monetary limits for initial approvals.
+- A versioned scoring rubric must convert each criterion to higher-is-better points. SQL enforces active model weights totaling 1, complete bounded scores, normalized aggregates and tied ranks. Portfolio constraints and governed overrides still need command-service logic.
 - Objective/portfolio hierarchies and portfolio dependencies must be acyclic. Membership weight sums and commitment totals are aggregate rules requiring command or reporting logic.
-- The service must validate polymorphic targets in `source_identity`, baseline-subject decisions, and baseline items; it must freeze the exact current version and verify portfolio scope before approval.
+- The service must validate polymorphic targets in `source_identity` and baseline-subject decisions. V006 verifies baseline item type, exact current version and payload, and portfolio scope at the valid interval's start; full-period scope and source authority still need service logic.
 - `case_revision.options` and `assumptions` have array checks but require a versioned JSON contract or normalized tables if analytics needs option-level querying.
 - Outbox consumers publish idempotently by `event_id`, claim with `FOR UPDATE SKIP LOCKED`, and mark delivery. Inbox processors compare the stored hash when a message key is reused.
 
