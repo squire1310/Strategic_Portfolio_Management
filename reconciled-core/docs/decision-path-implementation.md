@@ -12,7 +12,7 @@ The future command service must authenticate an active tenant member, authorize 
 | Complete assessment | M04 | Active scoring model, exact case or investment version, complete bounded criterion scores |
 | Lock scenario | M04 | Candidate normalized scores and shared ranks for ties, frozen scenario |
 | Recommend selection | M04 | Immutable basis snapshot; does not approve or reserve anything |
-| Decide investment | M05 with M06 authority | Authenticated independent approver, scoped mandate and monetary ceiling, frozen authority evidence |
+| Decide investment | M05 with M06 authority | First approval cites a selection recommendation; authenticated independent approver, scoped mandate and monetary ceiling, frozen authority evidence |
 | Record funding commitment | M05 | Same-investment approving decision; amount and currency no greater than approval |
 | Approve baseline | M06 with M05 decision | Independent approver; each item matches its current version and snapshot and belongs to the portfolio |
 
