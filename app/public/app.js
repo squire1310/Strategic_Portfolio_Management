@@ -1,0 +1,146 @@
+const message = document.querySelector('#message');
+let workspace = {};
+const entityTypes = {
+  strategies: ['m01_strategy', 'strategy'], objectives: ['m01_strategy', 'objective'],
+  outcomes: ['m01_strategy', 'outcome'], measures: ['m01_strategy', 'measure'],
+  observations: ['m01_strategy', 'measure_observation'], portfolios: ['m02_portfolio', 'portfolio'],
+  categories: ['m02_portfolio', 'investment_category'], investments: ['m05_investment', 'investment'],
+  memberships: ['m02_portfolio', 'portfolio_membership'], alignments: ['m02_portfolio', 'portfolio_objective']
+};
+
+function show(text, kind = 'ok') {
+  message.textContent = text;
+  message.className = kind;
+}
+function label(row) { return row.name || row.title || row.label || row.statement || row.code || row.id; }
+function names(key, id) { return workspace[key]?.find(row => row.id === id)?.name || workspace[key]?.find(row => row.id === id)?.title || workspace[key]?.find(row => row.id === id)?.code || id || '—'; }
+function fillOptions() {
+  for (const select of document.querySelectorAll('select[data-options]')) {
+    const current = select.value;
+    const key = select.dataset.options;
+    select.replaceChildren();
+    const blank = document.createElement('option');
+    blank.value = ''; blank.textContent = select.hasAttribute('data-optional') ? 'None' : `Choose ${key.slice(0, -1)}`;
+    select.append(blank);
+    for (const row of workspace[key] || []) {
+      const option = document.createElement('option');
+      option.value = row.id;
+      option.textContent = `${row.code ? `${row.code} · ` : ''}${label(row)}`;
+      select.append(option);
+    }
+    select.value = current;
+  }
+  syncEditForms();
+}
+function syncEditForms() {
+  const sources = { 'observation-correction': 'observations', 'objective-update': 'objectives',
+    'portfolio-retire': 'portfolios', 'category-retire': 'categories' };
+  for (const [command, key] of Object.entries(sources)) {
+    const form = document.querySelector(`form[data-command="${command}"]`);
+    const row = workspace[key]?.find(item => item.id === form.elements.id.value);
+    form.elements.expectedVersion.value = row?.row_version || '';
+    if (command === 'objective-update') {
+      form.elements.title.value = row?.title || '';
+      form.elements.description.value = row?.description || '';
+      form.elements.status.value = row?.status || 'draft';
+    }
+  }
+}
+function cell(row, key) {
+  if (key === 'strategy_id') return names('strategies', row[key]);
+  if (key === 'objective_id' || key === 'parent_objective_id') return names('objectives', row[key]);
+  if (key === 'outcome_id') return names('outcomes', row[key]);
+  if (key === 'measure_id') return names('measures', row[key]);
+  if (key === 'portfolio_id' || key === 'parent_portfolio_id') return names('portfolios', row[key]);
+  if (key === 'category_id') return names('categories', row[key]);
+  if (key === 'investment_id') return names('investments', row[key]);
+  return row[key] == null ? '—' : String(row[key]);
+}
+function renderTable(containerId, key, fields) {
+  const container = document.getElementById(containerId);
+  const rows = workspace[key] || [];
+  container.replaceChildren();
+  if (!rows.length) { container.textContent = 'No records yet.'; return; }
+  const wrap = document.createElement('div'); wrap.className = 'table-wrap';
+  const table = document.createElement('table');
+  const head = document.createElement('thead'); const trh = document.createElement('tr');
+  for (const [name] of fields) { const th = document.createElement('th'); th.textContent = name; trh.append(th); }
+  const th = document.createElement('th'); th.textContent = 'Record'; trh.append(th); head.append(trh); table.append(head);
+  const body = document.createElement('tbody');
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    for (const [, field] of fields) { const td = document.createElement('td'); td.textContent = cell(row, field); tr.append(td); }
+    const td = document.createElement('td'); const button = document.createElement('button');
+    button.type = 'button'; button.className = 'quiet'; button.textContent = 'History';
+    button.addEventListener('click', () => viewHistory(key, row.id));
+    td.append(button); tr.append(td); body.append(tr);
+  }
+  table.append(body); wrap.append(table); container.append(wrap);
+}
+function render() {
+  fillOptions();
+  renderTable('strategies-list', 'strategies', [['Code', 'code'], ['Name', 'name'], ['Horizon', 'horizon'], ['Version', 'row_version']]);
+  renderTable('objectives-list', 'objectives', [['Code', 'code'], ['Title', 'title'], ['Strategy', 'strategy_id'], ['Parent', 'parent_objective_id'], ['Version', 'row_version']]);
+  renderTable('outcomes-list', 'outcomes', [['Code', 'code'], ['Statement', 'statement'], ['Objective', 'objective_id'], ['Contribution', 'contribution_rationale']]);
+  renderTable('measures-list', 'measures', [['Code', 'code'], ['Name', 'name'], ['Outcome', 'outcome_id'], ['Baseline', 'baseline_value'], ['Target', 'target_value']]);
+  renderTable('observations-list', 'observations', [['Measure', 'measure_id'], ['Date', 'observed_on'], ['Value', 'value'], ['Version', 'row_version']]);
+  renderTable('portfolios-list', 'portfolios', [['Code', 'code'], ['Name', 'name'], ['Parent', 'parent_portfolio_id'], ['Version', 'row_version']]);
+  renderTable('categories-list', 'categories', [['Code', 'code'], ['Label', 'label'], ['Active', 'active'], ['Version', 'row_version']]);
+  renderTable('investments-list', 'investments', [['Code', 'code'], ['Title', 'title'], ['Category', 'category_id'], ['State', 'lifecycle']]);
+  renderTable('memberships-list', 'memberships', [['Portfolio', 'portfolio_id'], ['Investment', 'investment_id'], ['Period', 'membership_during'], ['Weight', 'allocation_weight']]);
+  renderTable('alignments-list', 'alignments', [['Portfolio', 'portfolio_id'], ['Objective', 'objective_id'], ['Contribution', 'contribution']]);
+}
+async function load() {
+  const response = await fetch('/api/workspace');
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || 'Could not load records');
+  workspace = payload;
+  render();
+}
+async function viewHistory(key, id) {
+  try {
+    const [schema, table] = entityTypes[key];
+    const response = await fetch(`/api/history/${schema}/${table}/${id}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error);
+    const container = document.getElementById('history-list'); container.replaceChildren();
+    const title = document.createElement('h3'); title.textContent = `${table} · ${id}`; container.append(title);
+    for (const [section, rows] of [['Versions', payload.revisions], ['Audit events', payload.audit]]) {
+      const h = document.createElement('h4'); h.textContent = section; container.append(h);
+      if (!rows.length) { const p = document.createElement('p'); p.textContent = 'No entries.'; container.append(p); continue; }
+      for (const row of rows) {
+        const details = document.createElement('details'); const summary = document.createElement('summary');
+        summary.textContent = `${row.operation} · ${row.recorded_at || row.occurred_at} · actor ${row.actor_id || 'unknown'}`;
+        const pre = document.createElement('pre'); pre.textContent = JSON.stringify(row.payload || row.new_row || row.old_row, null, 2);
+        details.append(summary, pre); container.append(details);
+      }
+    }
+    document.getElementById('history').scrollIntoView();
+  } catch (error) { show(error.message, 'error'); }
+}
+
+for (const form of document.querySelectorAll('form[data-command]')) {
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const body = {};
+    for (const element of form.elements) {
+      if (!element.name || element.value === '') continue;
+      body[element.name] = element.type === 'number' ? Number(element.value) : element.value;
+    }
+    try {
+      const response = await fetch(`/api/commands/${form.dataset.command}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Could not save');
+      show('Saved. The record and its audit trail are available below.');
+      form.reset();
+      await load();
+    } catch (error) { show(error.message, 'error'); }
+  });
+}
+for (const command of ['observation-correction', 'objective-update', 'portfolio-retire', 'category-retire']) {
+  document.querySelector(`form[data-command="${command}"] select[name="id"]`).addEventListener('change', syncEditForms);
+}
+load().catch(error => show(error.message, 'error'));
+
