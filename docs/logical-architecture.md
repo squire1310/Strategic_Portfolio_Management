@@ -169,7 +169,7 @@ These increments are dependency order, not delivery dates. [Issue #4](https://gi
 
 | Topic | Decision needed | Why |
 | --- | --- | --- |
-| Risk implementation | Publish risk rating/appetite and disposition contracts, then add a reviewed forward migration and tests for the v1.1 M06 entities. | FR-032–FR-033 are modelled but not persisted in V001–V006. |
+| Risk implementation | Publish risk rating/appetite and disposition contracts, then add a reviewed forward migration and tests for the v1.1 M06 entities. | FR-032–FR-033 are modelled but not persisted in V001–V007. |
 | Evidence contracts | Publish JSON Schemas and version transitions for five case evidence, scenario constraints, recommendation basis and commitment envelopes. | D07 requires validation and reproducible approvals. |
 | Tenant service profile | Approve first deployment's tier, hours, latency, peak, RTO/RPO, retention, residency and support route. | NFR targets and recovery design cannot be finalised without these. |
 | Optional source authority | Select native or external owners for M07–M11 facts for the first tenant. | Avoid duplicated actuals, capacity, delivery and benefit facts. |
