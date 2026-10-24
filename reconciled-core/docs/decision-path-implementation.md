@@ -16,7 +16,7 @@ The future command service must authenticate an active tenant member, authorize 
 | Record funding commitment | M05 | Same-investment approving decision; amount and currency no greater than approval |
 | Approve baseline | M06 with M05 decision | Independent approver; each item matches its current version and snapshot and belongs to the portfolio |
 
-`normalized_score(tenant, assessment)` computes `100 × Σ(weight × score / maximum_score)`. The stored candidate score has ten decimal places; lock assigns `dense_rank` by descending score, so exact ties share a rank. A scoring rubric must ensure higher entered points always mean better performance, including cost and risk dimensions.
+`normalized_score(tenant, assessment)` computes `100 × Σ(weight × score / maximum_score)`. The stored candidate score has ten decimal places; lock assigns `dense_rank` using the calculated numeric result before storage rounding, so exact ties share a rank. A scoring rubric must ensure higher entered points always mean better performance, including cost and risk dimensions.
 
 Funding approvals carry a frozen amount/currency and a snapshot of the body mandate and delegation. A body with `quorum_required > 1` cannot issue a decision through this increment because vote evidence is not yet modeled. This blocks unsupported committee approval instead of treating a single signature as quorum. Funding commitments are checked against the approving decision. Capacity and scope/schedule commitments still need their full policy contracts.
 
