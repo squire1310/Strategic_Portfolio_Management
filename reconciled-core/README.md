@@ -2,13 +2,14 @@
 
 **Status: proposed model v0.4 and schema candidate.** The v0.3 conversation answer could not be retrieved, and the user confirmed the full canonical model needs producing. [The newly authored model](docs/canonical-domain-model-v0.4-draft.md) follows the repository's approved solution overview; it is ready for review, not yet approved as a canonical replacement. M01–M06 are native. Finance and resources remain M07/M08 extensions.
 
-The four forward-only migrations target PostgreSQL 16+ and require `pgcrypto` and `btree_gist`. Use a fresh database or schema namespace; these files replace the earlier `drafts/physical-schema` candidate and are not an in-place upgrade from it.
+The five forward-only migrations target PostgreSQL 16+ and require `pgcrypto` and `btree_gist`. Use a fresh database or schema namespace; these files replace the earlier `drafts/physical-schema` candidate and are not an in-place upgrade from it.
 
 ```sh
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V001__platform.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V002__strategy_portfolio_demand_selection.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V003__investment_governance.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V004__security_seed.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V005__decision_evidence.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/smoke.sql
 ```
 
