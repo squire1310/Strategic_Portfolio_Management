@@ -3,7 +3,7 @@
 **Version:** 0.2 · **Status:** Proposed for product and tenant review · **Prepared:** 24 October 2026  
 **Scope:** Hybrid SPM product, including native M01–M06, essential platform services and any enabled M07–M12 modules or integrations. These requirements define qualities of the service; [functional requirements](functional-requirements.md) define its behaviour.
 
-**Hosting location supplied by the product owner:** The AWS production data plane is to be hosted in Europe (London), `eu-west-2`, interpreting “UK South” as the AWS London Region. This fixes the Region for the [AWS physical architecture](../docs/physical-architecture-aws.md); global services and third-party processing still need a separate residency review.
+**Hosting location supplied by the product owner:** The AWS production data plane was specified for Europe (London), `eu-west-2`, interpreting “UK South” as the AWS London Region. On 24 October 2026 the product owner chose Europe (Stockholm), `eu-north-1`, for a **disposable synthetic-data pilot** using the connected AWS (new) project without advanced features. This pilot exception does not approve real or production data outside the UK. The [AWS physical architecture](../docs/physical-architecture-aws.md) retains London as its production reference pending a separate location decision; global services and third-party processing still need a residency review.
 
 ## Source and authority
 

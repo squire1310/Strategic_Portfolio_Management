@@ -98,7 +98,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   });
   const port = Number(process.env.SPM_PORT || 3000);
   const server = createHttpServer(store);
-  const bind = process.env.SPM_PUBLIC_ORIGIN ? '0.0.0.0' : '127.0.0.1';
+  const bind = process.env.SPM_BIND_ADDRESS || (process.env.SPM_PUBLIC_ORIGIN ? '0.0.0.0' : '127.0.0.1');
   server.listen(port, bind, () => console.log(`SPM listening on ${bind}:${port}`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => store.close()));
 }
