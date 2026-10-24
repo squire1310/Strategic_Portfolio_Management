@@ -47,6 +47,10 @@ function syncEditForms() {
   }
 }
 function cell(row, key) {
+  if (key === 'strategy_of_objective') {
+    const objective = workspace.objectives?.find(item => item.id === row.objective_id);
+    return names('strategies', objective?.strategy_id);
+  }
   if (key === 'strategy_id') return names('strategies', row[key]);
   if (key === 'objective_id' || key === 'parent_objective_id') return names('objectives', row[key]);
   if (key === 'outcome_id') return names('outcomes', row[key]);
@@ -68,8 +72,17 @@ function renderTable(containerId, key, fields) {
   const th = document.createElement('th'); th.textContent = 'Record'; trh.append(th); head.append(trh); table.append(head);
   const body = document.createElement('tbody');
   for (const row of rows) {
-    const tr = document.createElement('tr');
-    for (const [, field] of fields) { const td = document.createElement('td'); td.textContent = cell(row, field); tr.append(td); }
+    const tr = document.createElement('tr'); tr.id = `${key}-${row.id}`;
+    for (const [, field] of fields) {
+      const td = document.createElement('td');
+      if ((field === 'objective_id' && key === 'alignments') || (field === 'strategy_id' && key === 'objectives')) {
+        const link = document.createElement('a');
+        link.href = `#${field === 'objective_id' ? 'objectives' : 'strategies'}-${row[field]}`;
+        link.textContent = cell(row, field);
+        td.append(link);
+      } else td.textContent = cell(row, field);
+      tr.append(td);
+    }
     const td = document.createElement('td'); const button = document.createElement('button');
     button.type = 'button'; button.className = 'quiet'; button.textContent = 'History';
     button.addEventListener('click', () => viewHistory(key, row.id));
@@ -88,7 +101,7 @@ function render() {
   renderTable('categories-list', 'categories', [['Code', 'code'], ['Label', 'label'], ['Active', 'active'], ['Version', 'row_version']]);
   renderTable('investments-list', 'investments', [['Code', 'code'], ['Title', 'title'], ['Category', 'category_id'], ['State', 'lifecycle']]);
   renderTable('memberships-list', 'memberships', [['Portfolio', 'portfolio_id'], ['Investment', 'investment_id'], ['Period', 'membership_during'], ['Weight', 'allocation_weight']]);
-  renderTable('alignments-list', 'alignments', [['Portfolio', 'portfolio_id'], ['Objective', 'objective_id'], ['Contribution', 'contribution']]);
+  renderTable('alignments-list', 'alignments', [['Portfolio', 'portfolio_id'], ['Objective', 'objective_id'], ['Strategy', 'strategy_of_objective'], ['Contribution', 'contribution']]);
 }
 async function load() {
   const response = await fetch('/api/workspace');
