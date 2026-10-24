@@ -16,7 +16,8 @@ DECLARE actor_id uuid; strategy_id uuid; objective_id uuid; portfolio_id uuid; c
         scenario_id uuid; investment_scenario_id uuid; recommendation_id uuid;
         investment_recommendation_id uuid; body_id uuid; investment_id uuid;
         v_investment_assessment_id uuid;
-        decision_id uuid; reject_decision_id uuid; v_baseline_id uuid; successor_id uuid; other_actor uuid;
+        decision_id uuid; reject_decision_id uuid; v_baseline_id uuid; successor_id uuid;
+        partial_id uuid; partial_decision_id uuid; other_actor uuid;
         blocked boolean;
 BEGIN
   actor_id := platform.current_actor();
@@ -115,6 +116,13 @@ BEGIN
       AND basis_snapshot->'investment_revision' IS NOT NULL) THEN
     RAISE EXCEPTION 'investment recommendation basis was not frozen';
   END IF;
+  UPDATE m05_investment.investment SET title='Investment updated later'
+    WHERE tenant_id=platform.current_tenant() AND id=investment_id;
+  IF NOT EXISTS (SELECT 1 FROM m04_selection.selection_recommendation
+    WHERE tenant_id=platform.current_tenant() AND id=investment_recommendation_id
+      AND basis_snapshot->'investment_revision'->>'title'='Investment') THEN
+    RAISE EXCEPTION 'recommendation basis changed with investment';
+  END IF;
   INSERT INTO m02_portfolio.portfolio_membership
     (tenant_id,portfolio_id,investment_id,membership_during)
     VALUES(platform.current_tenant(),portfolio_id,investment_id,daterange('2026-01-01',NULL,'[)'));
@@ -156,6 +164,20 @@ BEGIN
       AND id=v_baseline_id AND status='superseded' AND NOT upper_inf(recorded_during)) THEN
     RAISE EXCEPTION 'baseline supersession failed';
   END IF;
+  INSERT INTO m06_governance.baseline(tenant_id,portfolio_id,baseline_type,label,created_by,valid_during)
+    VALUES(platform.current_tenant(),portfolio_id,'portfolio','Partial overlap',actor_id,
+      tstzrange('2026-06-01','2027-01-01','[)')) RETURNING id INTO partial_id;
+  INSERT INTO m05_investment.investment_decision
+    (tenant_id,decision_body_id,decided_by,subject_type,subject_id,decision_type,rationale,decided_at,effective_on)
+    VALUES(platform.current_tenant(),body_id,actor_id,'baseline',partial_id,'approve',
+      'Attempt partial successor',transaction_timestamp(),'2026-06-01') RETURNING id INTO partial_decision_id;
+  blocked := false;
+  BEGIN
+    UPDATE m06_governance.baseline SET status='approved',approved_decision_id=partial_decision_id,
+      approved_at=clock_timestamp() WHERE tenant_id=platform.current_tenant() AND id=partial_id;
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'partially overlapping successor was approved'; END IF;
   blocked := false;
   BEGIN
     UPDATE m06_governance.baseline_item SET snapshot='{"changed":true}'::jsonb
