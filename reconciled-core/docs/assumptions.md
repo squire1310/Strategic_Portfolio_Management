@@ -2,7 +2,7 @@
 
 ## Source and scope
 
-The prior v0.3 answer was unavailable as text. The user confirmed that a full canonical model needs to be produced. The accompanying v0.4 draft derives module boundaries from the approved `docs/solution-overview.md` in this repository. Exact naming and attributes are new proposals. This schema does not implement M07–M12.
+The prior v0.3 answer was unavailable as text. The product owner approved the newly authored [canonical model v1.0](canonical-domain-model-v1.0.md) and [domain decisions D01–D10](domain-decisions-v1.0.md) on 24 October 2026. They derive module boundaries from the approved `docs/solution-overview.md` in this repository. This schema does not implement M07–M12 and does not yet enforce every approved policy.
 
 ## Guarantees implemented in SQL
 
@@ -29,5 +29,5 @@ The prior v0.3 answer was unavailable as text. The user confirmed that a full ca
 - Tenant creation, role assignment, source-system registration, and default-code seeding are privileged provisioning steps.
 - `audit_event` is append-only; `entity_revision` closes the prior recorded interval on change. It stores whole-row JSON. Regulated use requires a retention, partitioning, redaction, encryption, and export policy before production.
 - Business-valid intervals use half-open ranges. PostgreSQL timestamps are stored as `timestamptz`; API display uses the tenant's timezone. Codes are tenant-local. Currency and units in commitment envelopes require a governed registry in a later migration.
-- The draft has no dedicated M07 financial actuals, M08 individual resource records, document binaries, workflow engine, or analytical warehouse. Approved commitment envelopes are the native M05 authority that those capabilities will consume.
+- The current schema has no dedicated M07 financial actuals, M08 individual resource records, document binaries, workflow engine, or analytical warehouse. Approved commitment envelopes are the native M05 authority that those capabilities will consume.
 
