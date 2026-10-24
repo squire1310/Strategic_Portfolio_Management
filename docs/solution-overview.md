@@ -4,6 +4,8 @@
 **Audience:** Product, enterprise architecture, delivery, security, finance and governance stakeholders  
 **Scope:** Target architecture and phased product direction, assessed against the [user stories](../requirements/user-stories.md), [functional requirements](../requirements/functional-requirements.md) and [non-functional requirements](../requirements/non-functional-requirements.md) on 24 October 2026. Requirements are proposed for product review unless supported by D01–D10. This document does not certify production readiness.
 
+The [proposed logical architecture](logical-architecture.md) details component responsibilities, module ownership, contracts, interaction paths and open architecture decisions.
+
 ## Executive summary
 
 Strategic Portfolio Management (SPM) gives large enterprises and public sector organisations one governed path from strategy and demand to investment choice, commitment, delivery oversight and benefits evidence. The product connects outcomes, portfolios, proposals, decisions and approved plans so leaders can explain what they chose, why, on whose authority, and what changed afterward.
