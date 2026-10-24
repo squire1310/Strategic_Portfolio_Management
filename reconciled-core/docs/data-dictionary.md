@@ -32,20 +32,20 @@ This dictionary traces the approved [canonical model v1.0](canonical-domain-mode
 | M04 `assessment` | Demand or investment evaluation | Exactly one subject; model; case revision or investment version | Complete scores required; frozen when completed |
 | M04 `criterion_score` | One bounded score per criterion | Composite FKs ensure same scoring model; score at most criterion maximum | Versioned while assessment draft |
 | M04 `scenario` | Selection configuration | Tenant code; model | Versioned while draft; then frozen |
-| M04 `scenario_candidate` | Ranked demand or investment | Unique scenario/subject; completed assessment | Versioned while scenario draft |
+| M04 `scenario_candidate` | Ranked demand or investment | Unique scenario/subject; completed assessment; normalized score calculated from criteria | Versioned while scenario draft; tied ranks assigned at lock |
 | M04 `selection_recommendation` | Proposed selection outcome | Scenario and demand/investment; database-frozen basis snapshot | Immutable; no approval effect |
 | M05 `investment` | Stable canonical investment | Optional unique origin demand; M02 category | Versioned; approved lifecycle needs decision |
-| M05 `investment_decision` | Authorised choice or baseline approval | M06 body, actor, subject; supersedes chain | Immutable; chair or delegation checked |
+| M05 `investment_decision` | Authorised choice or baseline approval | M06 body, actor, subject; supersedes chain; optional approved amount/currency and authority snapshot | Immutable; active independent approver, mandate and delegation amount checked for monetary approvals |
 | M05 `commitment` | Approved funding/capacity/scope/schedule envelope | Same-investment approving decision | Immutable; approval checked |
 | M05 `commitment_amendment` | Approved change to commitment | Same-investment commitment and decision | Immutable; approval checked |
-| M06 `decision_body` | Investment authority | Tenant code; chair | Versioned |
+| M06 `decision_body` | Investment authority | Tenant code; chair; monetary limit/currency; required quorum | Versioned; quorum above one blocks decisions until vote support exists |
 | M06 `gate` | Governed review point | Decision body and lifecycle stage | Versioned |
 | M06 `delegation` | Time-bounded authority grant | Body, delegate, scope and optional limit | Versioned |
 | M06 `assurance_finding` | Recorded assurance issue | Investment; optional gate; closure evidence | Versioned |
 | M06 `governance_exception` | Controlled exception | Investment; optional same-investment finding | Versioned |
 | M06 `governance_action` | Remedial task | Exactly one finding or exception | Versioned |
 | M06 `baseline` | Approved portfolio snapshot | Portfolio, matching approval; valid and recorded ranges | Approval and successor pattern |
-| M06 `baseline_item` | Frozen item/version/payload | Baseline; typed polymorphic item | Immutable after approval |
+| M06 `baseline_item` | Frozen item/version/payload | Baseline; typed polymorphic item | Immutable after approval; version, payload and portfolio scope checked at approval |
 
 ## Storage and query rules
 

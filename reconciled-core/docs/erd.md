@@ -118,20 +118,27 @@ erDiagram
              uuid id PK }
   SCENARIO_CANDIDATE { uuid tenant_id PK
                        uuid id PK
-                       int rank }
+                       int rank
+                       numeric aggregate_score }
   RECOMMENDATION { uuid tenant_id PK
                    uuid id PK }
   INVESTMENT { uuid tenant_id PK
                uuid id PK }
   INVESTMENT_DECISION { uuid tenant_id PK
                         uuid id PK
-                        uuid subject_id }
+                        uuid subject_id
+                        numeric approval_amount
+                        string approval_currency
+                        jsonb authority_snapshot }
   COMMITMENT { uuid tenant_id PK
                uuid id PK }
   AMENDMENT { uuid tenant_id PK
               uuid id PK }
   DECISION_BODY { uuid tenant_id PK
-                  uuid id PK }
+                  uuid id PK
+                  numeric monetary_limit
+                  string currency_code
+                  int quorum_required }
   GATE { uuid tenant_id PK
          uuid id PK }
   DELEGATION { uuid tenant_id PK
@@ -157,7 +164,7 @@ erDiagram
                   uuid id PK }
 ```
 
-`INVESTMENT_DECISION.subject_id` refers to either its investment or a baseline. `BASELINE_ITEM.item_id` can point to several frozen core types. These are validated in the M05/M06 command services because a single SQL FK cannot express a typed polymorphic target.
+`INVESTMENT_DECISION.subject_id` refers to either its investment or a baseline. `BASELINE_ITEM.item_id` can point to several frozen core types. V006 verifies allowed baseline targets, exact current versions and portfolio scope at approval; a single SQL FK cannot express this typed relationship. The command service still owns full lifecycle and authorization policy.
 
 ## Platform provenance and event flow
 
