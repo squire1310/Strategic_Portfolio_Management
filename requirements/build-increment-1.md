@@ -1,6 +1,6 @@
 # Build increment 1 — strategic intent and portfolio context
 
-**Decision:** On 24 October 2026 the product owner prioritised [US-001–US-004](user-stories.md) for the first build increment. This is a delivery slice of the approved hybrid core, not a change to the remaining Core MVP scope. No application has yet been built.
+**Decision:** On 24 October 2026 the product owner prioritised [US-001–US-004](user-stories.md) for the first build increment. This is a delivery slice of the approved hybrid core, not a change to the remaining Core MVP scope. A [local-only application slice](../app/README.md) now implements these paths; it has not been deployed to AWS or assessed for public use.
 
 ## Outcome and scope
 
@@ -31,5 +31,5 @@ The first usable path lets a strategy leader define a strategy, objectives, outc
 
 ## Next decisions for the build team
 
-Select the application language/framework and UI approach; choose the interim authentication mechanism; name the first tenant/test roles and synthetic dataset; and agree the implementation sequence and owners for US-001–US-004. These are engineering decisions, not additional domain-policy approvals.
+The first slice uses Node.js, a small browser UI and PostgreSQL 16. Synthetic tenants and contributors are provisioned in CI. Before an AWS pilot, choose the interim authentication mechanism, complete browser/accessibility review and an account-specific cost estimate, and agree the pilot's operating owner. These are engineering decisions, not additional domain-policy approvals.
 
