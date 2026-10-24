@@ -24,6 +24,14 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
   };
   try {
     let strategy, objective, outcome, measure, observation, portfolio, investment;
+    await t.test('local browser assets are served without external dependencies', async () => {
+      const page = await fetch(base);
+      assert.equal(page.status, 200);
+      assert.match(await page.text(), /Define strategic intent/);
+      const script = await fetch(`${base}/app.js`);
+      assert.equal(script.status, 200);
+      assert.match(await script.text(), /strategy_of_objective/);
+    });
     await t.test('strategy, objective, outcome, measure and correction retain history', async () => {
       let r = await post('strategy', { code: `strategy_${suffix}`, name: 'Test strategy', startDate: '2026-01-01', endDate: '2030-01-01' });
       assert.equal(r.status, 201); strategy = r.body;
