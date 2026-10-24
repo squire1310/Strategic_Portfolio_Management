@@ -39,7 +39,9 @@ BEGIN
         AND c.aggregate_score IS DISTINCT FROM m04_selection.normalized_score(c.tenant_id,c.assessment_id)
     ) THEN RAISE EXCEPTION 'scenario candidate score is stale'; END IF;
     WITH ranking AS (
-      SELECT id,dense_rank() OVER (ORDER BY aggregate_score DESC) AS new_rank
+      SELECT id,dense_rank() OVER (
+        ORDER BY m04_selection.normalized_score(tenant_id,assessment_id) DESC
+      ) AS new_rank
       FROM m04_selection.scenario_candidate
       WHERE tenant_id=NEW.tenant_id AND scenario_id=NEW.id
     )
