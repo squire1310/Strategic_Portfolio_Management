@@ -35,7 +35,7 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
     await t.test('strategy, objective, outcome, measure and correction retain history', async () => {
       let r = await post('strategy', { code: `strategy_${suffix}`, name: 'Test strategy', startDate: '2026-01-01', endDate: '2030-01-01' });
       assert.equal(r.status, 201); strategy = r.body;
-      r = await post('objective', { strategyId: strategy.id, code: `objective_${suffix}`, title: 'Improve outcome' });
+      r = await post('objective', { strategyId: strategy.id, code: `objective_${suffix}`, title: 'Improve outcome', validFrom: '2026-01-01', validUntil: '2030-01-01' });
       assert.equal(r.status, 201); objective = r.body;
       r = await post('objective-update', { id: objective.id, expectedVersion: 1, title: 'Improve the service outcome', status: 'active' });
       assert.equal(r.status, 201); assert.equal(r.body.row_version, 2); objective = r.body;
@@ -45,6 +45,8 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
       assert.equal(r.status, 201); measure = r.body;
       r = await post('observation', { measureId: measure.id, observedOn: '2026-10-01', value: 40, evidenceUri: 'synthetic:source' });
       assert.equal(r.status, 201); observation = r.body;
+      r = await post('observation', { measureId: measure.id, observedOn: '2026-10-02', value: 41 });
+      assert.equal(r.status, 400);
       r = await post('observation-correction', { id: observation.id, expectedVersion: 1, value: 45, evidenceUri: 'synthetic:correction' });
       assert.equal(r.status, 201); assert.equal(r.body.row_version, 2);
       r = await post('observation-correction', { id: observation.id, expectedVersion: 1, value: 50, evidenceUri: 'synthetic:stale' });
@@ -58,7 +60,7 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
     });
 
     await t.test('hierarchy cycles and duplicate tenant codes fail', async () => {
-      let r = await post('objective', { strategyId: strategy.id, parentObjectiveId: objective.id, code: `child_${suffix}`, title: 'Child objective' });
+      let r = await post('objective', { strategyId: strategy.id, parentObjectiveId: objective.id, code: `child_${suffix}`, title: 'Child objective', validFrom: '2026-01-01', validUntil: '2030-01-01' });
       assert.equal(r.status, 201);
       const child = r.body;
       r = await post('objective-parent', { id: objective.id, parentObjectiveId: child.id, expectedVersion: 1 });
@@ -101,7 +103,7 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
 
     await t.test('cross-tenant references and mismatched actor fail', async () => {
       const foreign = await other.command('strategy', { code: `foreign_${suffix}`, name: 'Foreign', startDate: '2026-01-01', endDate: '2030-01-01' });
-      const foreignObjective = await other.command('objective', { strategyId: foreign.id, code: `foreign_obj_${suffix}`, title: 'Foreign objective' });
+      const foreignObjective = await other.command('objective', { strategyId: foreign.id, code: `foreign_obj_${suffix}`, title: 'Foreign objective', validFrom: '2026-01-01', validUntil: '2030-01-01' });
       const r = await post('alignment', { portfolioId: portfolio.id, objectiveId: foreignObjective.id, contribution: 'Should fail' });
       assert.equal(r.status, 400);
       const workspace = await (await fetch(`${base}/api/workspace`)).json();
