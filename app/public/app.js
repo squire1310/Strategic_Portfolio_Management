@@ -9,8 +9,23 @@ const entityTypes = {
 };
 
 function show(text, kind = 'ok') {
-  message.textContent = text;
-  message.className = kind;
+  message.replaceChildren();
+  if (kind === 'error') {
+    const box = document.createElement('div');
+    box.className = 'govuk-error-summary'; box.setAttribute('role', 'alert');
+    box.tabIndex = -1;
+    const title = document.createElement('h2'); title.className = 'govuk-error-summary__title'; title.textContent = 'There is a problem';
+    const body = document.createElement('div'); body.className = 'govuk-error-summary__body'; body.textContent = text;
+    box.append(title, body); message.append(box); box.focus();
+  } else {
+    const box = document.createElement('div'); box.className = 'govuk-notification-banner govuk-notification-banner--success';
+    box.setAttribute('role', 'status');
+    const header = document.createElement('div'); header.className = 'govuk-notification-banner__header';
+    const title = document.createElement('h2'); title.className = 'govuk-notification-banner__title'; title.textContent = 'Success';
+    const content = document.createElement('div'); content.className = 'govuk-notification-banner__content';
+    const paragraph = document.createElement('p'); paragraph.className = 'govuk-notification-banner__heading'; paragraph.textContent = text;
+    header.append(title); content.append(paragraph); box.append(header, content); message.append(box);
+  }
 }
 function label(row) { return row.name || row.title || row.label || row.statement || row.code || row.id; }
 function names(key, id) { return workspace[key]?.find(row => row.id === id)?.name || workspace[key]?.find(row => row.id === id)?.title || workspace[key]?.find(row => row.id === id)?.code || id || '—'; }
@@ -64,27 +79,29 @@ function renderTable(containerId, key, fields) {
   const container = document.getElementById(containerId);
   const rows = workspace[key] || [];
   container.replaceChildren();
-  if (!rows.length) { container.textContent = 'No records yet.'; return; }
-  const wrap = document.createElement('div'); wrap.className = 'table-wrap';
-  const table = document.createElement('table');
-  const head = document.createElement('thead'); const trh = document.createElement('tr');
-  for (const [name] of fields) { const th = document.createElement('th'); th.textContent = name; trh.append(th); }
-  const th = document.createElement('th'); th.textContent = 'Record'; trh.append(th); head.append(trh); table.append(head);
-  const body = document.createElement('tbody');
+  if (!rows.length) { const p = document.createElement('p'); p.className = 'govuk-body'; p.textContent = 'No records yet.'; container.append(p); return; }
+  const wrap = document.createElement('div'); wrap.className = 'app-table-scroll';
+  const table = document.createElement('table'); table.className = 'govuk-table';
+  const head = document.createElement('thead'); head.className = 'govuk-table__head';
+  const trh = document.createElement('tr'); trh.className = 'govuk-table__row';
+  for (const [name] of fields) { const th = document.createElement('th'); th.className = 'govuk-table__header'; th.scope = 'col'; th.textContent = name; trh.append(th); }
+  const th = document.createElement('th'); th.className = 'govuk-table__header'; th.scope = 'col'; th.textContent = 'Record'; trh.append(th); head.append(trh); table.append(head);
+  const body = document.createElement('tbody'); body.className = 'govuk-table__body';
   for (const row of rows) {
-    const tr = document.createElement('tr'); tr.id = `${key}-${row.id}`;
+    const tr = document.createElement('tr'); tr.className = 'govuk-table__row'; tr.id = `${key}-${row.id}`;
     for (const [, field] of fields) {
-      const td = document.createElement('td');
+      const td = document.createElement('td'); td.className = 'govuk-table__cell';
       if ((field === 'objective_id' && key === 'alignments') || (field === 'strategy_id' && key === 'objectives')) {
         const link = document.createElement('a');
         link.href = `#${field === 'objective_id' ? 'objectives' : 'strategies'}-${row[field]}`;
-        link.textContent = cell(row, field);
+        link.className = 'govuk-link'; link.textContent = cell(row, field);
         td.append(link);
       } else td.textContent = cell(row, field);
       tr.append(td);
     }
-    const td = document.createElement('td'); const button = document.createElement('button');
-    button.type = 'button'; button.className = 'quiet'; button.textContent = 'History';
+    const td = document.createElement('td'); td.className = 'govuk-table__cell'; const button = document.createElement('button');
+    button.type = 'button'; button.className = 'govuk-button govuk-button--secondary app-record-link'; button.textContent = 'History';
+    button.setAttribute('aria-label', `History for ${label(row)}`);
     button.addEventListener('click', () => viewHistory(key, row.id));
     td.append(button); tr.append(td); body.append(tr);
   }
@@ -117,14 +134,14 @@ async function viewHistory(key, id) {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error);
     const container = document.getElementById('history-list'); container.replaceChildren();
-    const title = document.createElement('h3'); title.textContent = `${table} · ${id}`; container.append(title);
+    const title = document.createElement('h3'); title.className = 'govuk-heading-m'; title.textContent = `${table} · ${id}`; container.append(title);
     for (const [section, rows] of [['Versions', payload.revisions], ['Audit events', payload.audit]]) {
-      const h = document.createElement('h4'); h.textContent = section; container.append(h);
-      if (!rows.length) { const p = document.createElement('p'); p.textContent = 'No entries.'; container.append(p); continue; }
+      const h = document.createElement('h4'); h.className = 'govuk-heading-s'; h.textContent = section; container.append(h);
+      if (!rows.length) { const p = document.createElement('p'); p.className = 'govuk-body'; p.textContent = 'No entries.'; container.append(p); continue; }
       for (const row of rows) {
-        const details = document.createElement('details'); const summary = document.createElement('summary');
+        const details = document.createElement('details'); details.className = 'govuk-details app-history-entry'; const summary = document.createElement('summary'); summary.className = 'govuk-details__summary';
         summary.textContent = `${row.operation} · ${row.recorded_at || row.occurred_at} · actor ${row.actor_id || 'unknown'}`;
-        const pre = document.createElement('pre'); pre.textContent = JSON.stringify(row.payload || row.new_row || row.old_row, null, 2);
+        const pre = document.createElement('pre'); pre.className = 'govuk-details__text'; pre.textContent = JSON.stringify(row.payload || row.new_row || row.old_row, null, 2);
         details.append(summary, pre); container.append(details);
       }
     }
