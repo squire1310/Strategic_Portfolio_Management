@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Strategic Portfolio Management — local pilot</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <p class="eyebrow">Strategic Portfolio Management · Increment 1</p>
+      <h1>Define strategic intent</h1>
+      <p>Create strategies, outcomes and portfolio links. This local pilot uses synthetic data and a configured test actor.</p>
+    </div>
+  </header>
+  <main class="shell">
+    <div id="message" role="status" aria-live="polite"></div>
+    <nav aria-label="Sections"><a href="#strategy">Strategy</a><a href="#outcomes">Outcomes</a><a href="#portfolio">Portfolio</a><a href="#history">History</a></nav>
+
+    <section id="strategy">
+      <h2>Strategy and objectives</h2>
+      <div class="grid">
+        <form data-command="strategy"><h3>New strategy</h3>
+          <label>Code <input name="code" required pattern="[a-z][a-z0-9_]+"></label>
+          <label>Name <input name="name" required></label>
+          <label>Description <textarea name="description"></textarea></label>
+          <div class="pair"><label>Horizon start <input type="date" name="startDate" required></label><label>Horizon end <input type="date" name="endDate" required></label></div>
+          <button>Create strategy</button>
+        </form>
+        <form data-command="objective"><h3>New objective</h3>
+          <label>Strategy <select name="strategyId" data-options="strategies" required></select></label>
+          <label>Parent objective, if any <select name="parentObjectiveId" data-options="objectives" data-optional></select></label>
+          <label>Code <input name="code" required pattern="[a-z][a-z0-9_]+"></label>
+          <label>Title <input name="title" required></label>
+          <label>Description <textarea name="description"></textarea></label>
+          <label>Priority <input type="number" name="priority" min="1" max="5" value="3" required></label>
+          <button>Create objective</button>
+        </form>
+        <form data-command="objective-update"><h3>Revise an objective</h3>
+          <label>Objective <select name="id" data-options="objectives" required></select></label>
+          <label>Current version <input type="number" name="expectedVersion" readonly required></label>
+          <label>Title <input name="title" required></label>
+          <label>Description <textarea name="description"></textarea></label>
+          <label>Status <select name="status"><option value="draft">Draft</option><option value="active">Active</option><option value="retired">Retired</option></select></label>
+          <button>Save revision</button>
+        </form>
+      </div>
+      <div class="listing"><h3>Strategies</h3><div id="strategies-list"></div></div>
+      <div class="listing"><h3>Objectives</h3><div id="objectives-list"></div></div>
+    </section>
+
+    <section id="outcomes">
+      <h2>Outcomes and measures</h2>
+      <div class="grid">
+        <form data-command="outcome"><h3>New outcome</h3>
+          <label>Objective <select name="objectiveId" data-options="objectives" required></select></label>
+          <label>Code <input name="code" required pattern="[a-z][a-z0-9_]+"></label>
+          <label>Intended result <textarea name="statement" required></textarea></label>
+          <label>How this advances the objective <textarea name="contributionRationale" required></textarea></label>
+          <label>Target date, if applicable <input type="date" name="targetDate"></label>
+          <button>Create outcome</button>
+        </form>
+        <form data-command="measure"><h3>New measure</h3>
+          <label>Outcome <select name="outcomeId" data-options="outcomes" required></select></label>
+          <label>Code <input name="code" required pattern="[a-z][a-z0-9_]+"></label>
+          <label>Name <input name="name" required></label>
+          <label>Unit <input name="unit" required></label>
+          <label>Desired direction <select name="direction"><option value="increase">Increase</option><option value="decrease">Decrease</option><option value="maintain">Maintain</option></select></label>
+          <div class="pair"><label>Baseline <input type="number" step="any" name="baselineValue"></label><label>Target <input type="number" step="any" name="targetValue"></label></div>
+          <button>Create measure</button>
+        </form>
+        <form data-command="observation"><h3>Record an observation</h3>
+          <label>Measure <select name="measureId" data-options="measures" required></select></label>
+          <label>Observed on <input type="date" name="observedOn" required></label>
+          <label>Value <input type="number" step="any" name="value" required></label>
+          <label>Evidence reference <input name="evidenceUri" placeholder="A source or document reference"></label>
+          <button>Record observation</button>
+        </form>
+        <form data-command="observation-correction"><h3>Correct an observation</h3>
+          <label>Observation <select name="id" data-options="observations" required></select></label>
+          <label>Current version <input type="number" name="expectedVersion" readonly required></label>
+          <label>Corrected value <input type="number" step="any" name="value" required></label>
+          <label>Correction evidence <input name="evidenceUri" required></label>
+          <button>Save correction</button>
+        </form>
+      </div>
+      <div class="listing"><h3>Outcomes</h3><div id="outcomes-list"></div></div>
+      <div class="listing"><h3>Measures</h3><div id="measures-list"></div></div>
+      <div class="listing"><h3>Observations</h3><div id="observations-list"></div></div>
+    </section>
+
+    <section id="portfolio">
+      <h2>Portfolio context</h2>
+      <div class="grid">
+        <form data-command="portfolio"><h3>New portfolio</h3>
+          <label>Parent portfolio, if any <select name="parentPortfolioId" data-options="portfolios" data-optional></select></label>
+          <label>Code <input name="code" required pattern="[a-z][a-z0-9_]+"></label>
+          <label>Name <input name="name" required></label>
+          <button>Create portfolio</button>
+        </form>
+        <form data-command="category"><h3>New investment category</h3>
+          <label>Code <input name="code" required pattern="[a-z][a-z0-9_]+"></label>
+          <label>Label <input name="label" required></label>
+          <button>Create category</button>
+        </form>
+        <form data-command="investment"><h3>Candidate investment</h3>
+          <p class="hint">A minimal identity for portfolio membership; approval comes in a later increment.</p>
+          <label>Category <select name="categoryId" data-options="categories" required></select></label>
+          <label>Code <input name="code" required pattern="[a-z][a-z0-9_]+"></label>
+          <label>Title <input name="title" required></label>
+          <button>Create candidate</button>
+        </form>
+        <form data-command="membership"><h3>Assign investment to portfolio</h3>
+          <label>Portfolio <select name="portfolioId" data-options="portfolios" required></select></label>
+          <label>Investment <select name="investmentId" data-options="investments" required></select></label>
+          <div class="pair"><label>From <input type="date" name="startDate" required></label><label>Until <input type="date" name="endDate" required></label></div>
+          <label>Allocation weight <input type="number" name="weight" min="0.000001" max="1" step="0.000001" value="1"></label>
+          <button>Assign investment</button>
+        </form>
+        <form data-command="alignment"><h3>Explain strategic alignment</h3>
+          <label>Portfolio <select name="portfolioId" data-options="portfolios" required></select></label>
+          <label>Objective <select name="objectiveId" data-options="objectives" required></select></label>
+          <label>Expected contribution <textarea name="contribution" required></textarea></label>
+          <button>Save alignment</button>
+        </form>
+        <form data-command="portfolio-retire"><h3>Retire a portfolio</h3>
+          <p class="hint">Its earlier memberships and decisions remain available.</p>
+          <label>Portfolio <select name="id" data-options="portfolios" required></select></label>
+          <label>Current version <input type="number" name="expectedVersion" readonly required></label>
+          <button>Retire portfolio</button>
+        </form>
+        <form data-command="category-retire"><h3>Retire a category</h3>
+          <label>Category <select name="id" data-options="categories" required></select></label>
+          <label>Current version <input type="number" name="expectedVersion" readonly required></label>
+          <button>Retire category</button>
+        </form>
+      </div>
+      <div class="listing"><h3>Portfolios</h3><div id="portfolios-list"></div></div>
+      <div class="listing"><h3>Categories</h3><div id="categories-list"></div></div>
+      <div class="listing"><h3>Candidate investments</h3><div id="investments-list"></div></div>
+      <div class="listing"><h3>Portfolio memberships</h3><div id="memberships-list"></div></div>
+      <div class="listing"><h3>Strategic alignments</h3><div id="alignments-list"></div></div>
+    </section>
+
+    <section id="history"><h2>History and attribution</h2><p>Select “History” on a record to inspect its saved versions and audit events.</p><div id="history-list"></div></section>
+  </main>
+</body>
+</html>
+
