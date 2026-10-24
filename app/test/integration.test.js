@@ -27,7 +27,15 @@ test('US-001–US-004 application slice', { skip: !process.env.SPM_TEST_DATABASE
     await t.test('local browser assets are served without external dependencies', async () => {
       const page = await fetch(base);
       assert.equal(page.status, 200);
-      assert.match(await page.text(), /Define strategic intent/);
+      const markup = await page.text();
+      assert.match(markup, /Define strategic intent/);
+      assert.match(markup, /govuk-skip-link/);
+      assert.match(markup, /govuk-header__service-name/);
+      assert.match(markup, /govuk-form-group/);
+      assert.doesNotMatch(markup, /govuk-header__logotype/);
+      const stylesheet = await fetch(`${base}/govuk.css`);
+      assert.equal(stylesheet.status, 200);
+      assert.match(await stylesheet.text(), /govuk-button/);
       const script = await fetch(`${base}/app.js`);
       assert.equal(script.status, 200);
       assert.match(await script.text(), /strategy_of_objective/);
