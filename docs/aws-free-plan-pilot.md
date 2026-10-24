@@ -1,10 +1,10 @@
 # AWS pilot account constraints
 
-**Recorded:** 24 October 2026 · **Status:** Account and budget inputs for Increment 1; no AWS resources have been deployed.
+**Recorded:** 24 October 2026 · **Status:** Synthetic pilot running in Stockholm; account and budget controls for Increment 1.
 
 The product owner initially reported a standalone AWS Free-plan account with USD 100 in credits. The available AWS connection resolves to a different project member account. On 24 October 2026 that connected account was upgraded to **Paid** and the Free Tier API reported **USD 120 remaining credit**. A USD 45 monthly gross-cost budget with alert thresholds is in place. The project is assigned to **Europe (Stockholm), `eu-north-1`**: EC2 and RDS read calls succeeded there but were explicitly denied by an organisation service control policy in **Europe (London), `eu-west-2`**. The product owner has now selected whichever Region permits a pilot without advanced features, so **the disposable, synthetic-data pilot will use Stockholm**. This is a pilot exception to the earlier UK hosting direction, not approval to place real or production data outside the UK. The account identifiers are held outside this public repository. A shared database is acceptable. A permanent web address and external application identity provider are deferred. [AWS project Regions](https://docs.aws.amazon.com/accounts/latest/reference/project-regions.html); [AWS-managed project policies](https://docs.aws.amazon.com/accounts/latest/reference/scps-and-rcps-for-projects.html).
 
-The [Increment 1 pilot cost plan](aws-pilot-cost-plan.md) now gives a bounded Single-AZ EC2 option and a conservative monthly planning allowance. Interim local-account authentication is implemented in the application; account-specific cost and eligibility checks remain a deployment gate.
+The [Increment 1 pilot cost plan](aws-pilot-cost-plan.md) gives a bounded Single-AZ EC2 option and a conservative monthly planning allowance. Interim local-account authentication is implemented in the application. The Stockholm instance uses an encrypted 20 GiB gp3 volume, a public HTTPS reverse proxy, local PostgreSQL, and Systems Manager access without an open SSH port. The public HTTPS page and an authenticated tenant workspace request were verified after launch. The pilot remains suitable for synthetic data only.
 
 ## What this changes
 
@@ -27,4 +27,3 @@ The [production reference architecture](physical-architecture-aws.md) is a targe
 ## Remaining access step
 
 The connected role can use EC2 and RDS in Stockholm but the AWS-managed `RegionFloor` policy denies the same calls in London. An IAM allow cannot override that explicit denial. The current pilot proceeds in Stockholm with synthetic data only. Before any real-data or production deployment, revisit the UK hosting direction and choose a London-capable account or advanced activation with `RegionFloor` updated for `eu-west-2`. [AWS-managed project policies](https://docs.aws.amazon.com/accounts/latest/reference/scps-and-rcps-for-projects.html); [advanced activation preparation](https://docs.aws.amazon.com/accounts/latest/reference/activate-advanced-features.html).
-

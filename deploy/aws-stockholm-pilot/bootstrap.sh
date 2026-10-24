@@ -112,6 +112,6 @@ unset db_password pilot_password pilot_hash
 
 systemctl daemon-reload
 systemctl enable --now spm
-systemctl enable --now caddy
+systemctl enable caddy
+systemctl reload-or-restart caddy
 printf 'Bootstrap complete: %s\n' "$origin"
-

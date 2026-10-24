@@ -1,8 +1,8 @@
 # Increment 1 AWS Stockholm pilot cost plan
 
-**Prepared:** 24 October 2026 · **Status:** Public Stockholm rates verified through AWS Price List API; no resources deployed at the time of this estimate.
+**Prepared:** 24 October 2026 · **Status:** Public Stockholm rates verified through AWS Price List API; pilot instance launched later that day.
 
-This plan is for a disposable, synthetic-data pilot of US-001–US-004 in `eu-north-1`. The available AWS connection resolves to a **project member account** distinct from the owner's originally stated account. On 24 October 2026 its plan changed from Free to **Paid**; the Free Tier API then reported **USD 120 remaining credit**. Estimated current-month spend was USD 0 before pilot deployment.
+This plan is for a disposable, synthetic-data pilot of US-001–US-004 in `eu-north-1`. The available AWS connection resolves to a **project member account** distinct from the owner's originally stated account. On 24 October 2026 its plan changed from Free to **Paid**; the Free Tier API then reported **USD 120 remaining credit**. Estimated current-month spend was USD 0 before pilot deployment. One `t3.small` instance with encrypted 20 GiB gp3 storage was subsequently launched in Stockholm.
 
 **Region decision:** read-only EC2 and RDS calls succeeded in Stockholm (`eu-north-1`) but were explicitly denied by an organisation service control policy in London (`eu-west-2`). The product owner chose the available Region to proceed without advanced features. This **pilot-only** change permits synthetic data in Stockholm; it does not satisfy the earlier UK location requirement for real or production data. The existing AWS Budgets alerts are not a hard spending cap. [AWS project Regions](https://docs.aws.amazon.com/accounts/latest/reference/project-regions.html); [AWS-managed project policies](https://docs.aws.amazon.com/accounts/latest/reference/scps-and-rcps-for-projects.html).
 
@@ -44,5 +44,4 @@ Stopping EC2 ends compute usage, but EBS, snapshots and an allocated public IPv4
 4. Provision only synthetic tenants and pilot accounts. Keep PostgreSQL on loopback, block ports 3000 and 5432 from the internet, terminate TLS at the reverse proxy and retain application login. Use an IAM role with MFA for administration; no account access keys in the repo.
 5. Run the four story journeys and a restore/teardown rehearsal. Record start and end dates, actual daily spend, resource inventory and the person responsible for stopping the pilot.
 
-The pilot is approved for Stockholm with synthetic data only. A temporary HTTPS hostname and a reliable teardown procedure are needed before sharing the app link. Neither the account ID, budget notification address nor credentials belong in this public repository.
-
+The pilot is running in Stockholm with synthetic data only. Its temporary HTTPS hostname is derived from the instance's public IP and is shared outside this public repository. Login credentials are generated on the instance and retrievable by the account owner through Systems Manager. To stop the ongoing compute charge, stop or terminate the instance; to end all pilot resource charges, terminate it and check for retained volumes, snapshots and public IPv4 allocations, then remove the pilot security group and IAM instance role/profile. Neither the account ID, budget notification address nor credentials belong in this public repository.

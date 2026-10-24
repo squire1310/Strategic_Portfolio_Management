@@ -1,6 +1,6 @@
 # Increment 1 application
 
-This is a **development slice** for US-001–US-004. It exposes strategy, objective, outcome, measure, portfolio, category, candidate investment, membership and alignment workflows. It uses the existing tenant-scoped PostgreSQL schema plus [V007](../reconciled-core/migrations/V007__strategic_intent.sql). It has an interim local-account login but is **not** deployed to AWS or production ready.
+This is a **development slice** for US-001–US-004. It exposes strategy, objective, outcome, measure, portfolio, category, candidate investment, membership and alignment workflows. It uses the existing tenant-scoped PostgreSQL schema plus [V007](../reconciled-core/migrations/V007__strategic_intent.sql). A disposable synthetic-data pilot is deployed in AWS Stockholm; it is **not production ready**. See the [pilot deployment notes](../deploy/aws-stockholm-pilot/README.md).
 
 ## Run locally
 
@@ -43,4 +43,3 @@ The candidate investment command creates **identity only** for US-003 membership
 `pnpm test` always runs login and UI asset tests. It also runs the HTTP/database integration suite when `SPM_TEST_DATABASE_URL` points to a disposable, migrated database with `app/test/seed.sql` applied. Without that variable, only the database suite is skipped. The [CI workflow](../.github/workflows/validate-increment-1.yml) runs it against PostgreSQL 16 under a non-owner login.
 
 This slice still needs account provisioning and recovery procedures, richer role permissions, upload/source contracts, accessibility review, performance checks, and the production security/recovery controls in the [requirements](../requirements/build-increment-1.md). The M06 risk entities in canonical model v1.1 are outside Increment 1 and not in V007.
-
