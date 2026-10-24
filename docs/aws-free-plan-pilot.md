@@ -2,7 +2,7 @@
 
 **Recorded:** 24 October 2026 · **Status:** Account and budget inputs for Increment 1; no AWS resources have been deployed.
 
-The product owner has created a standalone AWS Free-plan account with an initial **USD 100 credit balance**. The account identifier is held outside this public repository. The first environment is non-production, uses synthetic data, and is located in **Europe (London), `eu-west-2`**. A shared database is acceptable. A custom web address and external application identity provider are deferred.
+The product owner reported a standalone AWS Free-plan account with an initial **USD 100 credit balance**. The available AWS connection resolves to a different Free-plan member account with USD 100 remaining and an organisation policy that explicitly denies the London hosting services checked on 24 October 2026. The account identifiers are held outside this public repository. No resources have been deployed. The intended first environment is non-production, uses synthetic data and is located in **Europe (London), `eu-west-2`**. A shared database is acceptable. A permanent web address and external application identity provider are deferred.
 
 The [Increment 1 pilot cost plan](aws-pilot-cost-plan.md) now gives a bounded Single-AZ EC2 option and a conservative monthly planning allowance. Interim local-account authentication is implemented in the application; account-specific cost and eligibility checks remain a deployment gate.
 
@@ -26,5 +26,5 @@ The [production reference architecture](physical-architecture-aws.md) is a targe
 
 ## Remaining access step
 
-The account ID and plan details are enough to plan the build. To inspect or deploy into the account later, the delivery process needs a user-authorised, temporary AWS role or console session scoped to this account. No AWS access is connected to this workspace yet. Preparing code and infrastructure configuration does not require that access; creating cloud resources does.
+The connected AWS role can read Free-plan, budget and pricing information but is blocked by an explicit organisation service control policy from the London compute, database and deployment services checked. To deploy, the organisation administrator must permit the required services for this member account, or the owner must connect a different account with the right scope. The current connection does not establish access to the originally stated account. Preparing code and infrastructure configuration does not require that access; creating cloud resources does.
 

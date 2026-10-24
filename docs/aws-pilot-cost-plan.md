@@ -1,8 +1,10 @@
 # Increment 1 AWS London pilot cost plan
 
-**Prepared:** 24 October 2026 · **Status:** Planning estimate; no resources deployed or account-specific prices verified.
+**Prepared:** 24 October 2026 · **Status:** Public London rates verified through AWS Price List API; no resources deployed.
 
-This plan is for a disposable, synthetic-data pilot of US-001–US-004 in `eu-west-2`. The owner reported a standalone AWS Free-plan account with USD 100 of credit. That credit is a planning limit, not a monthly budget. The target account's balance, expiry, service eligibility, quotas and actual London quote must be checked in its own billing console before deployment. The connected AWS tool available during preparation did **not** resolve to the owner's stated account, so it was not used to inspect or change that account.
+This plan is for a disposable, synthetic-data pilot of US-001–US-004 in `eu-west-2`. The owner reported a standalone AWS Free-plan account with USD 100 of credit. The available AWS connection resolves to a **different Free-plan member account** governed by an organisation service control policy. On 24 October 2026 its Free plan was active with USD 100 remaining, estimated current-month spend of USD 0 and no budgets. Those facts do not verify the balance or eligibility of the owner's originally stated account. No AWS resources were created or changed.
+
+**Deployment block:** the connected role received an explicit service-control-policy deny for London EC2, RDS, Lightsail, Lambda, App Runner, ECS, S3, CloudFormation and Systems Manager read calls. This is an account-level restriction that the application or its role cannot override. Do not attempt to deploy this plan through that connection until the organisation administrator changes the policy or a permitted account connection is available.
 
 ## Pilot shape
 
@@ -19,7 +21,7 @@ This differs intentionally from the [production reference architecture](physical
 
 ## Conservative planning allowance
 
-The table is a **budgeting allowance**, not an AWS price quote. It uses 720 hours for an always-on 30-day month, a deliberately padded EC2 rate of USD 0.030/hour and gp3 allowance of USD 0.12/GB-month. The actual London rates, Free-plan credit treatment, tax, transfer and CPU-credit charges remain to be verified. AWS [EC2 pricing](https://aws.amazon.com/ec2/pricing/on-demand/) and [EBS pricing](https://aws.amazon.com/ebs/pricing/) vary by Region and usage. AWS lists a [public IPv4 price](https://aws.amazon.com/vpc/pricing/) of USD 0.005 per address-hour; Free Tier treatment must be checked for this account.
+The table is a **budgeting allowance**, not an account-specific AWS quote. It uses 720 hours for an always-on 30-day month, a deliberately padded EC2 rate of USD 0.030/hour and gp3 allowance of USD 0.12/GB-month. On 24 October 2026 the AWS Price List API returned public on-demand **EU (London)** rates of **USD 0.0236/hour** for Linux `t3.small` and **USD 0.0928/GB-month** for gp3 storage. The padded values below retain room for rate and usage variation. Free-plan credit treatment, tax, transfer and CPU-credit charges remain to be verified. AWS [EC2 pricing](https://aws.amazon.com/ec2/pricing/on-demand/) and [EBS pricing](https://aws.amazon.com/ebs/pricing/) vary by Region and usage. AWS lists a [public IPv4 price](https://aws.amazon.com/vpc/pricing/) of USD 0.005 per address-hour; Free Tier treatment must be checked for the deployment account.
 
 | Line | 30-day arithmetic | Allowance (USD) |
 | --- | ---: | ---: |
@@ -42,5 +44,5 @@ At the same usage profile, a **14-day always-on demonstration** is roughly USD 1
 4. Provision only synthetic tenants and pilot accounts. Keep PostgreSQL on loopback, block ports 3000 and 5432 from the internet, terminate TLS at the reverse proxy and retain application login. Use an IAM role with MFA for administration; no account access keys in the repo.
 5. Run the four story journeys and a restore/teardown rehearsal. Record start and end dates, actual daily spend, resource inventory and the person responsible for stopping the pilot.
 
-The current application is not deployed. The next external input is a temporary HTTPS hostname and access to the **intended** AWS account through a scoped role/session. Neither the account ID nor credentials belong in this public repository.
+The current application is not deployed. The next external inputs are a connection permitted to create resources in the **intended** AWS account and a temporary HTTPS hostname. Neither the account ID nor credentials belong in this public repository.
 
