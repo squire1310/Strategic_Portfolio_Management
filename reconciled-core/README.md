@@ -22,10 +22,11 @@ Migrations assume a database owner able to create extensions, schemas, and NOLOG
 - `docs/erd.md`: detailed Mermaid ERDs.
 - `docs/data-dictionary.md`: physical table mapping and history rules.
 - `docs/assumptions.md`: policy choices and remaining limits.
+- `docs/domain-decision-register.md`: decisions required for domain and production approval.
 - `tests/smoke.sql`: rollback-only end-to-end test of core relationships, revisions, approvals, baseline succession, decision immutability, and RLS.
 - `docs/validation.md`: executed PostgreSQL checks and remaining coverage.
 
 ## Validation status
 
-The migrations and smoke test passed on PostgreSQL 16 in the repository's [schema validation workflow](https://github.com/squire1310/Strategic_Portfolio_Management/actions/runs/40075650203). PostgreSQL binaries were unavailable locally. Passing SQL checks establishes that the schema executes and the tested invariants hold; domain approval and the service-level checks in [assumptions and limits](docs/assumptions.md) remain outstanding. See [validation details](docs/validation.md).
+The five migrations and expanded smoke test passed their PostgreSQL 16 steps in the repository's [schema validation workflow](https://github.com/squire1310/Strategic_Portfolio_Management/actions/runs/40076403068). PostgreSQL binaries were unavailable locally. Passing SQL checks establishes that the schema executes and the tested invariants hold; domain approval and the service-level checks in [assumptions and limits](docs/assumptions.md) remain outstanding. See the [decision register](docs/domain-decision-register.md) and [validation details](docs/validation.md).
 
