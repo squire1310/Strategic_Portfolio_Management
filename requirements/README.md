@@ -1,0 +1,6 @@
+# Requirements
+
+Store editable Strategic Portfolio Management requirements in this folder. Keep each requirement traceable to its source, owner, status, acceptance criteria, and the relevant module (M01–M12 or Platform).
+
+Current approved design sources are the [canonical domain model v1.0](../reconciled-core/docs/canonical-domain-model-v1.0.md) and [domain decisions v1.0](../reconciled-core/docs/domain-decisions-v1.0.md). Implementation gaps are tracked in [GitHub issue #4](https://github.com/squire1310/Strategic_Portfolio_Management/issues/4).
+
