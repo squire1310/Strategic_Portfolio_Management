@@ -1,8 +1,8 @@
 # Hybrid SPM native core: model and PostgreSQL schema
 
-**Status: canonical model v1.1 is the current design; domain decisions D01–D10 remain approved; PostgreSQL schema remains an implementation candidate.** The original [v1.0 model](docs/canonical-domain-model-v1.0.md) was approved on 24 October 2026. The product owner then requested [v1.1](docs/canonical-domain-model-v1.1.md) to add M06 strategic investment risks and appetite. Those entities are not in migrations V001–V006 and require a forward migration and tests before implementation. M01–M06 are native. Finance and resources remain M07/M08 extensions.
+**Status: canonical model v1.1 is the current design; domain decisions D01–D10 remain approved; PostgreSQL schema remains an implementation candidate.** The original [v1.0 model](docs/canonical-domain-model-v1.0.md) was approved on 24 October 2026. The product owner then requested [v1.1](docs/canonical-domain-model-v1.1.md) to add M06 strategic investment risks and appetite. Those entities are not in migrations V001–V007 and require a forward migration and tests before implementation. M01–M06 are native. Finance and resources remain M07/M08 extensions.
 
-The six forward-only migrations target PostgreSQL 16+ and require `pgcrypto` and `btree_gist`. Use a fresh database or schema namespace; these files replace the earlier `drafts/physical-schema` candidate and are not an in-place upgrade from it.
+The seven forward-only migrations target PostgreSQL 16+ and require `pgcrypto` and `btree_gist`. V007 adds the M01 outcome contribution rationale for Increment 1; it does not add the M06 risk entities. Use a fresh database or schema namespace; these files replace the earlier `drafts/physical-schema` candidate and are not an in-place upgrade from it.
 
 ```sh
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V001__platform.sql
@@ -11,6 +11,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V003__investment_govern
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V004__security_seed.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V005__decision_evidence.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V006__decision_path.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/V007__strategic_intent.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/smoke.sql
 ```
 
@@ -32,5 +33,5 @@ Migrations assume a database owner able to create extensions, schemas, and NOLOG
 
 ## Validation status
 
-All six migrations and the expanded smoke test passed on PostgreSQL 16 in the repository's [schema validation workflow](https://github.com/squire1310/Strategic_Portfolio_Management/actions/runs/40079135175). PostgreSQL binaries were unavailable locally. The approved policy's [implementation gaps](docs/domain-decisions-v1.0.md) and service-level checks in [assumptions and limits](docs/assumptions.md) remain outstanding. See [validation details](docs/validation.md).
+V001–V006 and the expanded smoke test passed on PostgreSQL 16 in the repository's [schema validation workflow](https://github.com/squire1310/Strategic_Portfolio_Management/actions/runs/40079135175). V007 and the [Increment 1 application](../app/README.md) are covered by a separate CI workflow; do not infer a pass until its run completes. PostgreSQL binaries were unavailable locally. The approved policy's [implementation gaps](docs/domain-decisions-v1.0.md) and service-level checks in [assumptions and limits](docs/assumptions.md) remain outstanding. See [validation details](docs/validation.md).
 
