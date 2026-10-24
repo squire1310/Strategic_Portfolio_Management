@@ -11,6 +11,12 @@ This is a **local-only development slice** for US-001–US-004. It exposes strat
 
 The server binds to loopback and accepts only a local host and origin. It has **no user login**. The test actor comes from local environment variables; never bind this build to a public address or put real data into it. A later public pilot must add application authentication before enabling tenant commands. No external identity provider is required to develop this slice locally.
 
+## Interface design
+
+The browser UI uses GOV.UK Frontend 6.6.0 components and a stylesheet built from its Sass during `pnpm start` and `pnpm test`. It uses the generic header and a standard system font because this prototype is not hosted on a `gov.uk` domain. It does not use the GOV.UK logotype or GDS Transport font. The page has a skip link, phase banner, GOV.UK form controls, tables, error summary, success notification, and footer. The neutral brand colour is a provisional choice pending a service owner brand decision.
+
+Date fields currently use native browser date controls styled with the GOV.UK input class. Before public release, assess these with users and replace them with the [GOV.UK date input pattern](https://design-system.service.gov.uk/components/date-input/) where users are entering a known date. The interface has not yet had a full accessibility audit or usability test; component use alone does not establish compliance.
+
 ## Command API
 
 `POST /api/commands/{strategy,objective,objective-update,objective-parent,outcome,measure,observation,observation-correction,portfolio,portfolio-parent,portfolio-retire,category,category-retire,investment,membership,alignment}` accepts JSON. `GET /api/workspace` returns tenant-scoped records. `GET /api/history/{schema}/{table}/{id}` returns entity revisions and audit events. The browser UI uses these endpoints. Writes require a synthetic active member with the `contributor` or `administrator` role. IDs and actor context are set on the server; request bodies cannot select a tenant or actor.
