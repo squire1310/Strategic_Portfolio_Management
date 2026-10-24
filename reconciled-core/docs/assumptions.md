@@ -11,7 +11,7 @@ The prior v0.3 answer was unavailable as text. The user confirmed that a full ca
 - Submitted case revisions, selection recommendations, investment decisions, commitments, and amendments cannot be updated or deleted.
 - Investment approval state requires a matching approving decision by a deferred constraint trigger. Decision makers must chair the body or hold an effective delegation for the subject scope.
 - Commitments and amendments require an approving decision for the same investment. A baseline approval requires a decision whose subject is that baseline.
-- Approved baseline snapshots cannot be edited; an overlapping successor closes the earlier baseline's recorded interval. Exclusion constraints prevent concurrent approved interpretations over the same valid time.
+- Approved baseline snapshots cannot be edited; a successor with the same business-valid interval closes the earlier baseline's recorded interval. Partial overlap is rejected pending an explicit interval-splitting design. Exclusion constraints prevent concurrent approved interpretations over the same valid time.
 - Inbound messages have a unique source/message key. External identity mappings have a unique source/object/external key. Outbox events are written in the source transaction.
 
 ## Service-level rules still required
