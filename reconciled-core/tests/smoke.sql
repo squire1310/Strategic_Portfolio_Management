@@ -14,7 +14,8 @@ DO $$
 DECLARE actor_id uuid; strategy_id uuid; objective_id uuid; portfolio_id uuid; category_id uuid;
         demand_id uuid; case_id uuid; model_id uuid; criterion_id uuid; assessment_id uuid;
         scenario_id uuid; recommendation_id uuid; body_id uuid; investment_id uuid;
-        decision_id uuid; baseline_id uuid; successor_id uuid;
+        decision_id uuid; reject_decision_id uuid; v_baseline_id uuid; successor_id uuid; other_actor uuid;
+        blocked boolean;
 BEGIN
   actor_id := platform.current_actor();
   INSERT INTO m01_strategy.strategy(tenant_id,code,name,horizon,owner_id)
@@ -77,15 +78,15 @@ BEGIN
       daterange('2026-01-01','2027-01-01','[)'));
   INSERT INTO m06_governance.baseline(tenant_id,portfolio_id,baseline_type,label,created_by,valid_during)
     VALUES(platform.current_tenant(),portfolio_id,'portfolio','FY26',actor_id,
-      tstzrange('2026-01-01','2027-01-01','[)')) RETURNING id INTO baseline_id;
+      tstzrange('2026-01-01','2027-01-01','[)')) RETURNING id INTO v_baseline_id;
   INSERT INTO m06_governance.baseline_item(tenant_id,baseline_id,item_type,item_id,item_version,snapshot)
-    VALUES(platform.current_tenant(),baseline_id,'investment',investment_id,1,'{}'::jsonb);
+    VALUES(platform.current_tenant(),v_baseline_id,'investment',investment_id,1,'{}'::jsonb);
   INSERT INTO m05_investment.investment_decision
     (tenant_id,decision_body_id,decided_by,subject_type,subject_id,decision_type,rationale,decided_at,effective_on)
-    VALUES(platform.current_tenant(),body_id,actor_id,'baseline',baseline_id,'approve','Baseline approved',
+    VALUES(platform.current_tenant(),body_id,actor_id,'baseline',v_baseline_id,'approve','Baseline approved',
       transaction_timestamp(),'2026-01-01') RETURNING id INTO decision_id;
   UPDATE m06_governance.baseline SET status='approved',approved_decision_id=decision_id,
-    approved_at=clock_timestamp() WHERE tenant_id=platform.current_tenant() AND id=baseline_id;
+    approved_at=clock_timestamp() WHERE tenant_id=platform.current_tenant() AND id=v_baseline_id;
   INSERT INTO m06_governance.baseline(tenant_id,portfolio_id,baseline_type,label,created_by,valid_during)
     VALUES(platform.current_tenant(),portfolio_id,'portfolio','FY26 revised',actor_id,
       tstzrange('2026-01-01','2027-01-01','[)')) RETURNING id INTO successor_id;
@@ -96,9 +97,51 @@ BEGIN
   UPDATE m06_governance.baseline SET status='approved',approved_decision_id=decision_id,
     approved_at=clock_timestamp() WHERE tenant_id=platform.current_tenant() AND id=successor_id;
   IF NOT EXISTS (SELECT 1 FROM m06_governance.baseline WHERE tenant_id=platform.current_tenant()
-      AND id=baseline_id AND status='superseded' AND NOT upper_inf(recorded_during)) THEN
+      AND id=v_baseline_id AND status='superseded' AND NOT upper_inf(recorded_during)) THEN
     RAISE EXCEPTION 'baseline supersession failed';
   END IF;
+  blocked := false;
+  BEGIN
+    UPDATE m06_governance.baseline_item SET snapshot='{"changed":true}'::jsonb
+      WHERE tenant_id=platform.current_tenant() AND baseline_id=v_baseline_id;
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'approved baseline item was mutable'; END IF;
+  blocked := false;
+  BEGIN
+    UPDATE m05_investment.investment_decision SET rationale='Changed'
+      WHERE tenant_id=platform.current_tenant() AND id=decision_id;
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'investment decision was mutable'; END IF;
+  INSERT INTO m05_investment.investment_decision
+    (tenant_id,decision_body_id,decided_by,investment_id,subject_type,subject_id,
+     decision_type,rationale,decided_at,effective_on)
+    VALUES(platform.current_tenant(),body_id,actor_id,investment_id,'investment',investment_id,
+      'reject','No further funding',clock_timestamp(),'2026-01-01') RETURNING id INTO reject_decision_id;
+  blocked := false;
+  BEGIN
+    INSERT INTO m05_investment.commitment
+      (tenant_id,investment_id,approving_decision_id,commitment_type,numeric_limit,unit,effective_during)
+      VALUES(platform.current_tenant(),investment_id,reject_decision_id,'capacity',1,'FTE',
+        daterange('2026-01-01','2027-01-01','[)'));
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'rejected decision authorised commitment'; END IF;
+  INSERT INTO platform.principal(subject,display_name)
+    VALUES('schema-smoke:unapproved','Unapproved decider') RETURNING principal_id INTO other_actor;
+  INSERT INTO platform.tenant_member(tenant_id,principal_id,member_role)
+    VALUES(platform.current_tenant(),other_actor,'contributor');
+  blocked := false;
+  BEGIN
+    INSERT INTO m05_investment.investment_decision
+      (tenant_id,decision_body_id,decided_by,investment_id,subject_type,subject_id,
+       decision_type,rationale,decided_at,effective_on)
+      VALUES(platform.current_tenant(),body_id,other_actor,investment_id,'investment',investment_id,
+        'approve','Must fail',clock_timestamp(),'2026-01-01');
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'unauthorised decision was accepted'; END IF;
 END $$;
 
 SET ROLE spm_app;
