@@ -87,10 +87,12 @@ export function createStore({ connectionString, tenantId, actorId }) {
         case 'objective': {
           const priority = body.priority == null ? 3 : body.priority;
           if (!Number.isInteger(priority) || priority < 1 || priority > 5) throw new AppError(400, 'priority must be 1–5');
+          const [validFrom, validUntil] = interval(body.validFrom, body.validUntil);
           return one(client, `INSERT INTO m01_strategy.objective
-            (tenant_id,strategy_id,parent_objective_id,code,title,description,priority,owner_id)
-            VALUES (platform.current_tenant(),$1,$2,$3,$4,$5,$6,platform.current_actor()) RETURNING *`,
-            [uuid(body.strategyId, 'strategyId'), optionalUuid(body.parentObjectiveId, 'parentObjectiveId'), code(body.code), requiredText(body.title, 'title', 200), optionalText(body.description, 'description'), priority]);
+            (tenant_id,strategy_id,parent_objective_id,code,title,description,priority,owner_id,valid_during)
+            VALUES (platform.current_tenant(),$1,$2,$3,$4,$5,$6,platform.current_actor(),
+              tstzrange(($7::date::timestamp AT TIME ZONE 'UTC'),($8::date::timestamp AT TIME ZONE 'UTC'),'[)')) RETURNING *`,
+            [uuid(body.strategyId, 'strategyId'), optionalUuid(body.parentObjectiveId, 'parentObjectiveId'), code(body.code), requiredText(body.title, 'title', 200), optionalText(body.description, 'description'), priority, validFrom, validUntil]);
         }
         case 'objective-update': {
           const status = requiredText(body.status, 'status', 20);
@@ -138,7 +140,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
           return one(client, `INSERT INTO m01_strategy.measure_observation
             (tenant_id,measure_id,observed_on,value,evidence_uri)
             VALUES (platform.current_tenant(),$1,$2,$3,$4) RETURNING *`,
-            [uuid(body.measureId, 'measureId'), date(body.observedOn, 'observedOn'), finiteNumber(body.value, 'value'), optionalText(body.evidenceUri, 'evidenceUri', 1000)]);
+            [uuid(body.measureId, 'measureId'), date(body.observedOn, 'observedOn'), finiteNumber(body.value, 'value'), requiredText(body.evidenceUri, 'evidenceUri', 1000)]);
         case 'observation-correction': {
           const updated = await client.query(`UPDATE m01_strategy.measure_observation
             SET value=$3,evidence_uri=$4 WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 RETURNING *`,
