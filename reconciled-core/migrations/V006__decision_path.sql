@@ -115,6 +115,13 @@ BEGIN
   END IF;
   IF NEW.decision_type='approve' THEN
     IF NEW.subject_type='investment' THEN
+      IF NEW.recommendation_id IS NULL AND NOT EXISTS (
+        SELECT 1 FROM m05_investment.investment_decision prior
+        WHERE prior.tenant_id=NEW.tenant_id AND prior.investment_id=NEW.investment_id
+          AND prior.decision_type='approve'
+      ) THEN
+        RAISE EXCEPTION 'first investment approval requires a selection recommendation';
+      END IF;
       SELECT * INTO i FROM m05_investment.investment
         WHERE tenant_id=NEW.tenant_id AND id=NEW.investment_id;
       IF NEW.decided_by IN (i.sponsor_id,i.owner_id) THEN
