@@ -36,6 +36,7 @@
           <label>Title <input name="title" required></label>
           <label>Description <textarea name="description"></textarea></label>
           <label>Priority <input type="number" name="priority" min="1" max="5" value="3" required></label>
+          <div class="pair"><label>Valid from <input type="date" name="validFrom" required></label><label>Valid until <input type="date" name="validUntil" required></label></div>
           <button>Create objective</button>
         </form>
         <form data-command="objective-update"><h3>Revise an objective</h3>
@@ -75,7 +76,7 @@
           <label>Measure <select name="measureId" data-options="measures" required></select></label>
           <label>Observed on <input type="date" name="observedOn" required></label>
           <label>Value <input type="number" step="any" name="value" required></label>
-          <label>Evidence reference <input name="evidenceUri" placeholder="A source or document reference"></label>
+          <label>Evidence reference <input name="evidenceUri" placeholder="A source or document reference" required></label>
           <button>Record observation</button>
         </form>
         <form data-command="observation-correction"><h3>Correct an observation</h3>
