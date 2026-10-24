@@ -1,6 +1,6 @@
 # Physical data dictionary
 
-This dictionary traces the newly authored [canonical model v0.4 draft](canonical-domain-model-v0.4-draft.md) to PostgreSQL tables. M01–M06 are native core boundaries. Each tenant-owned FK contains `tenant_id`; IDs are UUIDs. Unless marked append-only or a link, tables use `(tenant_id,id)` as primary key and carry `valid_during`, `row_version`, `created_at`, and `updated_at`.
+This dictionary traces the approved [canonical model v1.0](canonical-domain-model-v1.0.md) to PostgreSQL tables. M01–M06 are native core boundaries. Each tenant-owned FK contains `tenant_id`; IDs are UUIDs. Unless marked append-only or a link, tables use `(tenant_id,id)` as primary key and carry `valid_during`, `row_version`, `created_at`, and `updated_at`. [Domain decisions v1.0](domain-decisions-v1.0.md) distinguish policy from current SQL enforcement.
 
 | Module / table | Purpose | Key relationships and constraints | Change policy |
 |---|---|---|---|
