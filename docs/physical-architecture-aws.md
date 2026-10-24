@@ -1,7 +1,7 @@
 # Strategic Portfolio Management — proposed AWS physical architecture
 
-**Version:** 0.2 · **Status:** Proposed for architecture, security and service-owner review · **Prepared:** 24 October 2026  
-**Basis:** [Logical architecture](logical-architecture.md), [solution overview](solution-overview.md), [canonical model v1.0](../reconciled-core/docs/canonical-domain-model-v1.0.md), [domain decisions D01–D10](../reconciled-core/docs/domain-decisions-v1.0.md), [functional requirements](../requirements/functional-requirements.md) and [non-functional requirements](../requirements/non-functional-requirements.md). This document maps components to AWS services; it is not deployed infrastructure, a cost estimate or an approved tenant service profile.
+**Version:** 0.3 · **Status:** Proposed for architecture, security and service-owner review · **Prepared:** 24 October 2026  
+**Basis:** [Logical architecture](logical-architecture.md), [solution overview](solution-overview.md), [canonical model v1.1](../reconciled-core/docs/canonical-domain-model-v1.1.md), [domain decisions D01–D10](../reconciled-core/docs/domain-decisions-v1.0.md), [functional requirements](../requirements/functional-requirements.md), [Increment 1](../requirements/build-increment-1.md) and [non-functional requirements](../requirements/non-functional-requirements.md). This document maps components to AWS services; it is not deployed infrastructure, a cost estimate or an approved tenant service profile.
 
 **Region decision:** Host the production data plane in **AWS Europe (London), `eu-west-2`**, interpreting the requested “UK South” location as the AWS London Region. AWS does not label one of its Regions “UK South”. If “UK South” means a specific non-AWS cloud region or a stricter facility/location requirement, that needs a separate hosting decision. The service owner must still approve data classification, records policy and recovery targets.
 
@@ -16,7 +16,7 @@ Use an internet-facing ALB protected by a `eu-west-2` AWS WAF web ACL only if th
 ```mermaid
 flowchart TB
   U[Browser users and API clients]
-  IDP[Organisation identity providers]
+  IDP[Organisation identity provider for production]
   DNS[Route 53 DNS]
   WAF[AWS WAF regional web ACL]
   ALB[Application Load Balancer with ACM TLS]
@@ -76,7 +76,7 @@ The diagram is logical-to-physical placement. WAF is associated with the regiona
 
 ## 4. Accounts, Region and network
 
-**Accounts.** Use separate AWS accounts for production and non-production, with restricted deployment roles and central security/logging oversight. A separate production account, database and S3 bucket per tenant is an available stronger isolation profile when classification, residency or contract terms require it. The baseline shared application/data plane relies on application and PostgreSQL tenant isolation; it cannot satisfy a tenant demanding physical data-store separation without another stack. Account ownership and landing-zone standards must be agreed before implementation.
+**Accounts.** The product owner is arranging an AWS account. Use separate AWS accounts for production and non-production, with restricted deployment roles and central security/logging oversight before deploying beyond local development. A shared application and PostgreSQL database is accepted for the first environment; tenant-scoped keys and RLS remain mandatory. A separate production account, database and S3 bucket per tenant is an available stronger isolation profile when classification, residency or contract terms require it. The shared baseline cannot satisfy a tenant demanding physical data-store separation without another stack. Account ownership, billing controls and landing-zone standards must be agreed before AWS deployment. Do not place long-lived credentials in the repository.
 
 **Region.** Pin the production VPC, ALB/WAF, ECS tasks, ECR image repository, RDS, S3 evidence, KMS keys, Secrets Manager, SQS, EventBridge, CloudWatch log groups, CloudTrail log destination and RDS backups to `eu-west-2`. Configure infrastructure-as-code providers and deployment jobs to fail if a regional resource is created elsewhere. Do not enable cross-Region backup copies, event forwarding, database replication or global content caching. Keep non-production data synthetic or redacted; any environment holding real tenant data follows the same location rule. Verify service-specific metadata, support access and external identity-provider processing separately; a regional data plane alone does not prove all processing stays in the UK.
 
@@ -88,7 +88,7 @@ The diagram is logical-to-physical placement. WAF is associated with the regiona
 
 ## 5. Identity, authorisation and data protection
 
-Users authenticate with the tenant's enterprise identity provider through OIDC federation to the application. The application validates issuer, audience, signature, expiry and session controls, maps the principal to an active `TenantMember`, and authorises each command and read. Tenant identity is server-derived. IAM task roles grant narrowly scoped access to AWS services, while PostgreSQL login roles inherit only appropriate `spm_app` or `spm_worker` privileges. The separate migration role performs schema changes and extension setup. No browser or partner receives database credentials.
+The production target is tenant enterprise identity federation through OIDC. The application validates issuer, audience, signature, expiry and session controls, maps the principal to an active `TenantMember`, and authorises each command and read. For Increment 1, no external identity provider exists. An internet-facing ALB may host a synthetic demonstration, but anonymous routes may expose only non-sensitive synthetic content and may not perform tenant reads/writes, exports or document access. The build team must select a temporary application authentication mechanism before enabling interactive tenant commands over the public endpoint. Development-only test actors must not be reachable from public routes. Tenant identity is server-derived. IAM task roles grant narrowly scoped access to AWS services, while PostgreSQL login roles inherit only appropriate `spm_app` or `spm_worker` privileges. The separate migration role performs schema changes and extension setup. No browser or partner receives database credentials.
 
 Encrypt ALB client traffic with ACM-managed certificates and use TLS for task-to-RDS and approved external connections. Encrypt RDS storage and backups, S3 objects, SQS queues, EventBridge where selected, and logs according to the approved key policy. Rotate database and integration secrets using a tested procedure. Use S3 Block Public Access and least-privilege bucket policies; issue short-lived object access only after a tenant/role check. Scan uploads before making them available, verify checksums on retrieval and use object version IDs in case evidence. An S3 version is not an approved business-case revision.
 
@@ -144,8 +144,8 @@ Build a versioned container image and store it in Amazon ECR. Deploy the infrast
 
 | Decision | Proposed default | Change trigger or constraint |
 | --- | --- | --- |
-| AWS Region and account placement | `eu-west-2` for all production data-plane resources; isolated production account; shared tenant stack only if policy allows | Confirm whether “UK South” means AWS London and whether global-service metadata needs additional controls. |
-| Ingress | Regional WAF + public ALB for authorised internet users | Use private ALB/connectivity for internal-only tenants; do not assume CloudFront. |
+| AWS Region and account placement | `eu-west-2` confirmed as the intended AWS Region; separate production account; shared tenant stack accepted initially | Complete account setup, billing guardrails and global-service metadata review. |
+| Ingress | Regional WAF + public ALB accepted for the first environment | Anonymous access is limited to synthetic demonstration content until application authentication is in place; use private ALB/connectivity if a later tenant requires it. |
 | Database | RDS PostgreSQL 16+ Multi-AZ DB instance, direct bounded connections | Validate extensions, migration privileges, performance and selected RTO/RPO. |
 | Tenant isolation | Shared app/RDS with RLS and tenant-scoped keys | Separate stack/account/database for tenants requiring physical separation. |
 | Async transport | RDS outbox worker → EventBridge → SQS per consumer | Ordering and throughput tests may require FIFO queues or a different partitioned transport. |
@@ -153,7 +153,7 @@ Build a versioned container image and store it in Amazon ECR. Deploy the infrast
 | Recovery | `eu-west-2` Multi-AZ and PITR; optional same-Region, cross-account backup copy | No automatic cross-Region recovery. Accept or redesign for Region-wide outage risk against the approved RTO/RPO. |
 | Optional M07–M12 | Integrate existing authoritative systems first where a tenant already has them | Native deployment only under an approved source-authority contract. |
 
-This document fixes the AWS hosting Region to `eu-west-2`; it does not select the first tenant's service tier, monetary delegation, retention duration or UK government profile. D10 requires those decisions and tested recovery before production use. The proposed M06 risk register in FR-032–FR-033 still requires a versioned canonical-model decision; no AWS service choice settles its ownership.
+This document fixes the AWS hosting Region to `eu-west-2`; it does not select the first tenant's service tier, monetary delegation, retention duration or UK government profile. D10 requires an authenticated principal and active tenant membership for every command, plus identity federation and tested recovery before production use. The M06 risk register is now in canonical model v1.1; its SQL migration and service contracts remain outstanding.
 
 ## AWS documentation used
 
