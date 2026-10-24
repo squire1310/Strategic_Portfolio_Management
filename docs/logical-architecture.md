@@ -118,7 +118,7 @@ sequenceDiagram
   M05->>M05: Record immutable decision and approved envelope
   M05->>P: Audit + outbox in same transaction
   M06->>M05: Validate matching baseline approval decision
-  M06->>M06: Verify item versions and portfolio scope; freeze baseline
+  M06->>M06: Verify item versions and portfolio scope, then freeze baseline
   M06->>P: Audit + outbox in same transaction
 ```
 
