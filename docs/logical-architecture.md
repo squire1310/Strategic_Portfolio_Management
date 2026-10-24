@@ -35,7 +35,7 @@ flowchart TB
   CTX[Tenant and actor context<br/>authorization and policy checks]
   CMD[Module command handlers<br/>lifecycle and invariants]
   QRY[Read API and decision-trace projection]
-  CORE[M01 Strategy & Outcomes | M02 Portfolio Architecture<br/>M03 Demand & Cases | M04 Selection<br/>M05 Decisions & Commitments | M06 Governance]
+  CORE["M01 Strategy and Outcomes<br/>M02 Portfolio Architecture<br/>M03 Demand and Cases<br/>M04 Selection<br/>M05 Decisions and Commitments<br/>M06 Governance"]
   PLAT[Platform services<br/>identity, policy, revisions, audit,<br/>source identity, inbox/outbox]
   DB[(Tenant-scoped PostgreSQL<br/>module-owned schemas and RLS)]
   BUS[(Event transport)]
