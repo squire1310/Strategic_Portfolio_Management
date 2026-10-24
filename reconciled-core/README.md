@@ -1,6 +1,6 @@
 # Hybrid SPM native core: model and PostgreSQL schema
 
-**Status: canonical model and domain decisions v1.0 approved; PostgreSQL schema remains an implementation candidate.** The v0.3 conversation answer could not be retrieved, so the [newly authored model](docs/canonical-domain-model-v1.0.md) was derived from the approved solution overview and approved by the product owner on 24 October 2026 together with [domain decisions D01–D10](docs/domain-decisions-v1.0.md). M01–M06 are native. Finance and resources remain M07/M08 extensions.
+**Status: canonical model v1.1 is the current design; domain decisions D01–D10 remain approved; PostgreSQL schema remains an implementation candidate.** The original [v1.0 model](docs/canonical-domain-model-v1.0.md) was approved on 24 October 2026. The product owner then requested [v1.1](docs/canonical-domain-model-v1.1.md) to add M06 strategic investment risks and appetite. Those entities are not in migrations V001–V006 and require a forward migration and tests before implementation. M01–M06 are native. Finance and resources remain M07/M08 extensions.
 
 The six forward-only migrations target PostgreSQL 16+ and require `pgcrypto` and `btree_gist`. Use a fresh database or schema namespace; these files replace the earlier `drafts/physical-schema` candidate and are not an in-place upgrade from it.
 
@@ -18,7 +18,8 @@ Migrations assume a database owner able to create extensions, schemas, and NOLOG
 
 ## Contents
 
-- `docs/canonical-domain-model-v1.0.md`: approved entities, ownership, relationships, invariants, and extension boundaries.
+- `docs/canonical-domain-model-v1.1.md`: current design model, including M06 risk ownership, entities and invariants.
+- `docs/canonical-domain-model-v1.0.md`: approved historical model before the risk addition.
 - `docs/canonical-domain-model-v0.4-draft.md`: prior draft retained for provenance.
 - `migrations/`: versioned PostgreSQL schema and security setup.
 - `docs/erd.md`: detailed Mermaid ERDs.
