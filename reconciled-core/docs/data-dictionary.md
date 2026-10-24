@@ -1,6 +1,6 @@
 # Physical data dictionary
 
-This dictionary traces the approved [canonical model v1.0](canonical-domain-model-v1.0.md) to PostgreSQL tables. M01–M06 are native core boundaries. Each tenant-owned FK contains `tenant_id`; IDs are UUIDs. Unless marked append-only or a link, tables use `(tenant_id,id)` as primary key and carry `valid_during`, `row_version`, `created_at`, and `updated_at`. [Domain decisions v1.0](domain-decisions-v1.0.md) distinguish policy from current SQL enforcement.
+This dictionary traces the current [canonical model v1.1](canonical-domain-model-v1.1.md) to PostgreSQL tables through V007. M01–M06 are native core boundaries. The v1.1 M06 risk entities remain a model-only extension pending a forward migration. Each tenant-owned FK contains `tenant_id`; IDs are UUIDs. Unless marked append-only or a link, tables use `(tenant_id,id)` as primary key and carry `valid_during`, `row_version`, `created_at`, and `updated_at`. [Domain decisions v1.0](domain-decisions-v1.0.md) distinguish policy from current SQL enforcement.
 
 | Module / table | Purpose | Key relationships and constraints | Change policy |
 |---|---|---|---|
@@ -16,7 +16,7 @@ This dictionary traces the approved [canonical model v1.0](canonical-domain-mode
 | Platform `inbox_message` | Import deduplication and result | Source/message key PK | Integration worker |
 | M01 `strategy` | Strategic horizon | Tenant code, owner | Versioned |
 | M01 `objective` | Strategy aim and optional hierarchy | Strategy; tenant/strategy/code unique | Versioned |
-| M01 `outcome` | Intended result | Objective; owner | Versioned |
+| M01 `outcome` | Intended result and causal contribution explanation | Objective; owner; V007 `contribution_rationale` | Versioned; existing rows need rationale backfill before activation |
 | M01 `measure` | Target and baseline metric | Outcome; unit/direction | Versioned |
 | M01 `measure_observation` | Dated measured value | Measure/date unique; optional source | Versioned |
 | M02 `portfolio` | Investment grouping hierarchy | Parent portfolio; owner | Versioned |
