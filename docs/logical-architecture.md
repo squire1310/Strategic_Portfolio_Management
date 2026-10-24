@@ -1,13 +1,13 @@
 # Strategic Portfolio Management — proposed logical architecture
 
-**Version:** 0.1 · **Status:** Proposed for architecture and product review · **Prepared:** 24 October 2026  
+**Version:** 0.2 · **Status:** Proposed for architecture and product review · **Prepared:** 24 October 2026  
 **Scope:** Hybrid SPM platform with a native M01–M06 strategic core, essential platform services and optional native or integrated M07–M12 capabilities. This is a logical component and interaction design, not a deployment topology or claim of implementation.
 
 The [proposed AWS physical architecture](physical-architecture-aws.md) maps these components to deployable services, network zones and operational controls.
 
 ## Basis and decisions carried forward
 
-The architecture implements the approved [solution overview](solution-overview.md), [canonical domain model v1.0](../reconciled-core/docs/canonical-domain-model-v1.0.md) and [domain decisions D01–D10](../reconciled-core/docs/domain-decisions-v1.0.md). It responds to the [user stories](../requirements/user-stories.md), [functional requirements](../requirements/functional-requirements.md) and [non-functional requirements](../requirements/non-functional-requirements.md). The [reconciled core](../reconciled-core/README.md) is the current persistence candidate; the root-level inferred schema is an earlier draft. The [validation record](../reconciled-core/docs/validation.md) reports the SQL scope actually tested, not service readiness.
+The architecture implements the approved [solution overview](solution-overview.md), [canonical domain model v1.1](../reconciled-core/docs/canonical-domain-model-v1.1.md) and [domain decisions D01–D10](../reconciled-core/docs/domain-decisions-v1.0.md). It responds to the [user stories](../requirements/user-stories.md), [functional requirements](../requirements/functional-requirements.md) and [non-functional requirements](../requirements/non-functional-requirements.md). The [reconciled core](../reconciled-core/README.md) is the current persistence candidate; the root-level inferred schema is an earlier draft. The [validation record](../reconciled-core/docs/validation.md) reports the SQL scope actually tested, not service readiness. [Increment 1](../requirements/build-increment-1.md) prioritises US-001–US-004.
 
 **Approved constraints retained here:** one write owner per canonical fact; stable tenant-scoped identity; native strategy-to-approval core; configurable source authority for extensions; immutable submitted/approved evidence; bitemporal approved baselines; transaction-local tenant and actor context; and fail-closed approval policy. The initial deployable shape is a modular monolith. Separate services are a later option after boundaries and operational need are proven.
 
@@ -17,7 +17,7 @@ The architecture implements the approved [solution overview](solution-overview.m
 flowchart LR
   Users[Strategy, portfolio, case, committee,<br/>assurance and audit users]
   Admins[Tenant and integration operators]
-  IdP[Enterprise identity provider]
+  IdP[Enterprise identity provider for production]
   External[ERP, workforce, delivery,<br/>measurement and document systems]
   SPM[SPM logical platform<br/>native M01–M06 + optional M07–M12]
   Users -->|Browser / API| SPM
@@ -62,7 +62,7 @@ flowchart TB
   CORE -->|Evidence references| DOC
 ```
 
-The boxes express logical responsibilities. In the initial modular monolith, command handlers, module APIs and platform services may run in one process and one PostgreSQL transaction. The event transport, document service, identity provider and optional systems remain separately managed dependencies. Reporting and analytics consume authorised read models; they do not acquire write authority over source records.
+The boxes express logical responsibilities. In the initial modular monolith, command handlers, module APIs and platform services may run in one process and one PostgreSQL transaction. The event transport, document service, future enterprise identity provider and optional systems remain separately managed dependencies. Increment 1 has no external identity provider; public anonymous routes are limited to synthetic demonstration content until application authentication exists. Reporting and analytics consume authorised read models; they do not acquire write authority over source records.
 
 ### Component responsibilities and contracts
 
@@ -86,7 +86,7 @@ The boxes express logical responsibilities. In the initial modular monolith, com
 | M03 Demand & Business Cases | Demand, DemandObjective, BusinessCase, immutable CaseRevision | M01 objectives; Platform principals and document references | Native core |
 | M04 Prioritisation & Selection | ScoringModel, Criterion, Assessment, CriterionScore, Scenario, ScenarioCandidate, SelectionRecommendation | Exact M03 case revision or M05 investment version | Native core |
 | M05 Investment Decisions & Commitments | Investment, InvestmentDecision, Commitment, CommitmentAmendment | M04 recommendation; M06 authority and conditions; M03 demand origin | Native core |
-| M06 Governance & Assurance | DecisionBody, Gate, Delegation, AssuranceFinding, GovernanceException, GovernanceAction, Baseline, BaselineItem | M02 scope and M05 decision/investment | Native core |
+| M06 Governance & Assurance | DecisionBody, Gate, Delegation, AssuranceFinding, GovernanceException, GovernanceAction, RiskAppetiteVersion, InvestmentRisk, RiskAssessment, RiskDisposition, Baseline, BaselineItem | M02 scope and M05 decision/investment; optional M10 delivery risk observations | Native core |
 | Platform | Tenant, Principal, TenantMember, source system/identity, revisions, audit, inbox/outbox and reference policy | All modules through controlled APIs | Essential core |
 | M07 Finance | Budgets, forecasts, posted actuals or their authorised read copies | M05 approved funding; external ERP | Optional native/integrated |
 | M08 Resources | Capacity, supply and allocations or their authorised read copies | M05 approved capacity; workforce source | Optional native/integrated |
@@ -95,7 +95,7 @@ The boxes express logical responsibilities. In the initial modular monolith, com
 | M11 Benefits | Benefit forecasts, observations and evaluation evidence | M01 outcome/measure; M05 investment | Optional native/integrated |
 | M12 Analytics | Rebuildable projections, scorecards and trends | Authorised module events and read models | Optional read capability |
 
-FR-032–FR-033 propose an investment risk register and risk-appetite linkage in M06. These are **not yet entities in canonical model v1.0**. The architecture review must decide whether M06 owns the strategic risk register and M10 owns delivery risk observations, define their relationship, then version the model and schema. No module should create a competing canonical risk fact in the meantime.
+FR-032–FR-033 are represented in canonical model v1.1. M06 owns the strategic investment risk and approved appetite; M10 may own delivery-level observations and reference the M06 risk. The risk rating/appetite contract, forward SQL migration, service commands and tests remain to be designed. No module creates a competing canonical strategic risk fact.
 
 ## Key interaction paths
 
@@ -169,7 +169,7 @@ These increments are dependency order, not delivery dates. [Issue #4](https://gi
 
 | Topic | Decision needed | Why |
 | --- | --- | --- |
-| Risk ownership | Add and govern strategic investment risk/appetite in M06, with a defined relation to M10 delivery risks. | FR-032–FR-033 extend the approved entity catalogue. |
+| Risk implementation | Publish risk rating/appetite and disposition contracts, then add a reviewed forward migration and tests for the v1.1 M06 entities. | FR-032–FR-033 are modelled but not persisted in V001–V006. |
 | Evidence contracts | Publish JSON Schemas and version transitions for five case evidence, scenario constraints, recommendation basis and commitment envelopes. | D07 requires validation and reproducible approvals. |
 | Tenant service profile | Approve first deployment's tier, hours, latency, peak, RTO/RPO, retention, residency and support route. | NFR targets and recovery design cannot be finalised without these. |
 | Optional source authority | Select native or external owners for M07–M11 facts for the first tenant. | Avoid duplicated actuals, capacity, delivery and benefit facts. |
