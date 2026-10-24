@@ -5,7 +5,7 @@
 
 **Region decision:** Host the production data plane in **AWS Europe (London), `eu-west-2`**, interpreting the requested “UK South” location as the AWS London Region. AWS does not label one of its Regions “UK South”. If “UK South” means a specific non-AWS cloud region or a stricter facility/location requirement, that needs a separate hosting decision. The service owner must still approve data classification, records policy and recovery targets.
 
-**First AWS environment:** The product owner reported a standalone Free-plan account with USD 100 in credits. The available AWS connection is to a different Free-plan member account whose organisation policy denies the London hosting services checked; see the [pilot constraints](aws-free-plan-pilot.md) and [cost plan](aws-pilot-cost-plan.md). The initial deployment remains a proposed disposable, synthetic-data pilot, not the full production topology below. No account ID is recorded in this public repository. There is no permanent custom domain for the pilot; an interim HTTPS hostname is needed for a browser link.
+**First AWS environment:** The available AWS connection is to a project member account now on a Paid plan with remaining Free Tier credit and a USD 45 monthly gross-cost budget. Its organisation policy still denies the London hosting services checked after the upgrade; see the [pilot constraints](aws-free-plan-pilot.md) and [cost plan](aws-pilot-cost-plan.md). The initial deployment remains a proposed disposable, synthetic-data pilot, not the full production topology below. No account ID is recorded in this public repository. There is no permanent custom domain for the pilot; an interim HTTPS hostname is needed for a browser link.
 
 ## 1. Architecture position
 
