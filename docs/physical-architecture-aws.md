@@ -1,13 +1,15 @@
 # Strategic Portfolio Management — proposed AWS physical architecture
 
-**Version:** 0.1 · **Status:** Proposed for architecture, security and service-owner review · **Prepared:** 24 October 2026  
+**Version:** 0.2 · **Status:** Proposed for architecture, security and service-owner review · **Prepared:** 24 October 2026  
 **Basis:** [Logical architecture](logical-architecture.md), [solution overview](solution-overview.md), [canonical model v1.0](../reconciled-core/docs/canonical-domain-model-v1.0.md), [domain decisions D01–D10](../reconciled-core/docs/domain-decisions-v1.0.md), [functional requirements](../requirements/functional-requirements.md) and [non-functional requirements](../requirements/non-functional-requirements.md). This document maps components to AWS services; it is not deployed infrastructure, a cost estimate or an approved tenant service profile.
+
+**Region decision:** Host the production data plane in **AWS Europe (London), `eu-west-2`**, interpreting the requested “UK South” location as the AWS London Region. AWS does not label one of its Regions “UK South”. If “UK South” means a specific non-AWS cloud region or a stricter facility/location requirement, that needs a separate hosting decision. The service owner must still approve data classification, records policy and recovery targets.
 
 ## 1. Architecture position
 
-Deploy the native M01–M06 modular monolith as an Amazon ECS service on AWS Fargate, behind a regional Application Load Balancer (ALB). Keep application tasks and an Amazon RDS for PostgreSQL database in private subnets across at least two Availability Zones (AZs). Use a separate ECS worker service for outbox delivery, inbox processing and integration adapters. Store document binaries in private Amazon S3; the PostgreSQL core holds references, object version IDs and checksums. A regional Amazon EventBridge bus routes published domain events to Amazon SQS queues for independent consumers. This is a **proposed reference deployment**, subject to an approved service tier, data location and threat model.
+Deploy the native M01–M06 modular monolith as an Amazon ECS service on AWS Fargate, behind a regional Application Load Balancer (ALB) in `eu-west-2`. Keep application tasks and an Amazon RDS for PostgreSQL database in private subnets across at least two Availability Zones (AZs) within that Region. Use a separate ECS worker service for outbox delivery, inbox processing and integration adapters. Store document binaries in a private `eu-west-2` Amazon S3 bucket; the PostgreSQL core holds references, object version IDs and checksums. A `eu-west-2` Amazon EventBridge bus routes published domain events to `eu-west-2` Amazon SQS queues for independent consumers. This is a **proposed reference deployment**, subject to an approved service tier and threat model.
 
-Use an internet-facing ALB protected by a regional AWS WAF web ACL only if the selected tenant needs browser or API access over the internet. A private ALB reached through approved private connectivity is an alternative for an internal-only deployment. The application serves its own browser assets initially so the data plane remains in the selected AWS Region; a global content-distribution layer is an explicit later decision after residency and cache policy review. DNS and identity-provider endpoints can still be global or external and require separate assessment.
+Use an internet-facing ALB protected by a `eu-west-2` AWS WAF web ACL only if the selected tenant needs browser or API access over the internet. A private ALB reached through approved private connectivity is an alternative for an internal-only deployment. The application serves its own browser assets initially so the data plane remains in `eu-west-2`; a global content-distribution layer is excluded from this baseline. DNS and identity-provider endpoints can still be global or external and require separate assessment.
 
 ## 2. Deployment view
 
@@ -18,7 +20,7 @@ flowchart TB
   DNS[Route 53 DNS]
   WAF[AWS WAF regional web ACL]
   ALB[Application Load Balancer with ACM TLS]
-  subgraph REGION[Approved AWS Region]
+  subgraph REGION[AWS Europe London eu-west-2]
     subgraph VPC[SPM production VPC]
       subgraph APP[Private application subnets in at least two AZs]
         WEB[ECS Fargate web and API tasks<br/>M01 to M06 and Platform commands]
@@ -76,7 +78,9 @@ The diagram is logical-to-physical placement. WAF is associated with the regiona
 
 **Accounts.** Use separate AWS accounts for production and non-production, with restricted deployment roles and central security/logging oversight. A separate production account, database and S3 bucket per tenant is an available stronger isolation profile when classification, residency or contract terms require it. The baseline shared application/data plane relies on application and PostgreSQL tenant isolation; it cannot satisfy a tenant demanding physical data-store separation without another stack. Account ownership and landing-zone standards must be agreed before implementation.
 
-**Region.** Choose an AWS Region only after the tenant approves classification and residency. Keep RDS, S3 evidence, KMS keys, SQS, EventBridge, CloudWatch log groups and backups in approved locations. A UK deployment might select AWS Europe (London), but this is a design candidate, not a universal policy. Do not enable cross-Region backups, event forwarding, replication or global caching until the data-location decision permits them. Verify service-specific metadata and support access separately; a regional data plane alone does not prove all processing stays in-region.
+**Region.** Pin the production VPC, ALB/WAF, ECS tasks, ECR image repository, RDS, S3 evidence, KMS keys, Secrets Manager, SQS, EventBridge, CloudWatch log groups, CloudTrail log destination and RDS backups to `eu-west-2`. Configure infrastructure-as-code providers and deployment jobs to fail if a regional resource is created elsewhere. Do not enable cross-Region backup copies, event forwarding, database replication or global content caching. Keep non-production data synthetic or redacted; any environment holding real tenant data follows the same location rule. Verify service-specific metadata, support access and external identity-provider processing separately; a regional data plane alone does not prove all processing stays in the UK.
+
+**Global-service boundary.** Route 53 public DNS and IAM are global AWS services; DNS names and infrastructure identity metadata can be handled outside `eu-west-2`. Do not place sensitive portfolio or personal data in DNS names, resource tags, IAM names, build logs or deployment metadata. The enterprise identity provider and GitHub CI also need a data-flow assessment. For a strict UK-only processing interpretation, a tenant-approved DNS/identity/CI arrangement or an explicit exception is required; selecting `eu-west-2` does not settle that question.
 
 **VPC.** Put the ALB in public subnets only for an internet-facing profile. ECS tasks use private app subnets with no public IP. RDS uses non-public database subnets with no internet route. Security groups allow client HTTPS to ALB, ALB to web/API tasks, and only approved task roles/subnets to RDS on PostgreSQL's port. Workers require only necessary outbound paths. Prefer VPC endpoints for S3, ECR, CloudWatch Logs, Secrets Manager and other used AWS APIs. Approved external systems use a controlled egress path, private network connection or partner endpoint as appropriate. Network ACLs and VPC Flow Logs support defence and investigation, but do not replace tenant checks.
 
@@ -114,7 +118,7 @@ An adapter accepts a signed/authorised webhook or queued feed, stores inbox idem
 
 Place at least two healthy ECS task instances across AZs for a production profile requiring zone resilience, with ALB health checks and autoscaling sized from the approved peak workload. Use an RDS for PostgreSQL Multi-AZ **DB instance** for standby failover in another AZ. This protects against an AZ/instance failure but does not restore accidentally deleted or corrupted business data. RDS failover disrupts active connections, so clients must reconnect and retry only idempotent operations. RDS automated backups and point-in-time recovery supply a separate restore path. Store infrastructure configuration and application image versions needed to rebuild the environment.
 
-Approve RTO, RPO, retention period and disaster-recovery test frequency in the [NFR service profile](../requirements/non-functional-requirements.md#service-profile-and-target-decisions). Test a timed restore into an isolated environment and reconcile sampled decisions, baselines, outbox/inbox states, S3 object versions and tenant permissions. Reconcile S3 evidence with the restored database at the selected point in time; S3 versioning and RDS PITR are separate timelines. A cross-Region disaster-recovery copy is a later option only where the tenant's residency and recovery policy approve it. Multi-AZ is high availability within one Region, not a substitute for a regional disaster-recovery design.
+Approve RTO, RPO, retention period and disaster-recovery test frequency in the [NFR service profile](../requirements/non-functional-requirements.md#service-profile-and-target-decisions). Test a timed restore into an isolated `eu-west-2` environment and reconcile sampled decisions, baselines, outbox/inbox states, S3 object versions and tenant permissions. Reconcile S3 evidence with the restored database at the selected point in time; S3 versioning and RDS PITR are separate timelines. A same-Region backup copy to a separately controlled AWS account can reduce account-level loss risk, but it does not protect against a full `eu-west-2` outage. Cross-Region recovery is excluded unless the hosting requirement is revised. Multi-AZ is high availability within one Region, so the service owner must accept the residual Region-wide outage risk or commission a different UK-hosted recovery design that meets the stated location rule.
 
 ## 8. Observability, release and operations
 
@@ -140,16 +144,16 @@ Build a versioned container image and store it in Amazon ECR. Deploy the infrast
 
 | Decision | Proposed default | Change trigger or constraint |
 | --- | --- | --- |
-| AWS Region and account placement | One approved Region; isolated production account; shared tenant stack only if policy allows | Tenant residency, classification or physical-isolation requirement. |
+| AWS Region and account placement | `eu-west-2` for all production data-plane resources; isolated production account; shared tenant stack only if policy allows | Confirm whether “UK South” means AWS London and whether global-service metadata needs additional controls. |
 | Ingress | Regional WAF + public ALB for authorised internet users | Use private ALB/connectivity for internal-only tenants; do not assume CloudFront. |
 | Database | RDS PostgreSQL 16+ Multi-AZ DB instance, direct bounded connections | Validate extensions, migration privileges, performance and selected RTO/RPO. |
 | Tenant isolation | Shared app/RDS with RLS and tenant-scoped keys | Separate stack/account/database for tenants requiring physical separation. |
 | Async transport | RDS outbox worker → EventBridge → SQS per consumer | Ordering and throughput tests may require FIFO queues or a different partitioned transport. |
 | Evidence retention | Private versioned S3 with SSE-KMS; Object Lock only after policy | Records schedule, legal hold and lawful disposal approval. |
-| Recovery | In-Region Multi-AZ and PITR | Cross-Region recovery only after residency and target approval. |
+| Recovery | `eu-west-2` Multi-AZ and PITR; optional same-Region, cross-account backup copy | No automatic cross-Region recovery. Accept or redesign for Region-wide outage risk against the approved RTO/RPO. |
 | Optional M07–M12 | Integrate existing authoritative systems first where a tenant already has them | Native deployment only under an approved source-authority contract. |
 
-This document does not select the first tenant's tier, monetary delegation, retention duration, residency or UK government profile. D10 requires those decisions and tested recovery before production use. The proposed M06 risk register in FR-032–FR-033 still requires a versioned canonical-model decision; no AWS service choice settles its ownership.
+This document fixes the AWS hosting Region to `eu-west-2`; it does not select the first tenant's service tier, monetary delegation, retention duration or UK government profile. D10 requires those decisions and tested recovery before production use. The proposed M06 risk register in FR-032–FR-033 still requires a versioned canonical-model decision; no AWS service choice settles its ownership.
 
 ## AWS documentation used
 
@@ -157,4 +161,5 @@ This document does not select the first tenant's tier, monetary delegation, rete
 - [RDS for PostgreSQL capabilities](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html); [Multi-AZ instance failover](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.Failover.html); [PostgreSQL extension availability](https://docs.aws.amazon.com/AmazonRDS/latest/PostgreSQLReleaseNotes/postgresql-extensions.html).
 - [RDS automated backups](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ManagingAutomatedBackups.html); [point-in-time restore](https://docs.aws.amazon.com/AmazonRDS/latest/gettingstartedguide/managing-backup-restore.html); [RDS Proxy pinning considerations](https://docs.aws.amazon.com/prescriptive-guidance/latest/amazon-rds-proxy/best-practices.html).
 - [AWS transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html); [S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html); [regional WAF protection of ALB](https://docs.aws.amazon.com/waf/latest/developerguide/how-aws-waf-works-resources.html).
+- [AWS Region names and locations](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html); [AWS services by Region](https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/); [Route 53 global control and data planes](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/route-53-concepts.html).
 
