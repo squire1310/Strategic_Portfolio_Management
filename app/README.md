@@ -1,12 +1,12 @@
 # Increment 1 application
 
-This is a **development slice** for US-001–US-004. It exposes strategy, objective, outcome, measure, portfolio, category, candidate investment, membership and alignment workflows. It uses the existing tenant-scoped PostgreSQL schema plus [V007](../reconciled-core/migrations/V007__strategic_intent.sql). A disposable synthetic-data pilot is deployed in AWS Stockholm; it is **not production ready**. See the [pilot deployment notes](../deploy/aws-stockholm-pilot/README.md).
+This is a **development slice** for US-001–US-004. It exposes strategy, objective, outcome, measure, portfolio, category, candidate investment, membership and alignment workflows. It uses the tenant-scoped PostgreSQL schema through [V008](../reconciled-core/migrations/V008__role_owned_record_retirement.sql). A disposable synthetic-data pilot is deployed in AWS Stockholm; it is **not production ready**. See the [pilot deployment notes](../deploy/aws-stockholm-pilot/README.md) and [role ownership rules](../requirements/role-ownership-prototype.md).
 
 ## Run locally
 
-1. Install Node.js 22+, pnpm 11 and PostgreSQL 16. Create a disposable database. Apply [V001–V007](../reconciled-core/migrations/) in order as the database owner, then run `app/test/seed.sql` **only in that disposable database** if you want the synthetic test tenants. The seed creates a known CI-only password; do not use it for a persistent or reachable database.
+1. Install Node.js 22+, pnpm 11 and PostgreSQL 16. Create a disposable database. Apply [V001–V008](../reconciled-core/migrations/) in order as the database owner, then run `app/test/seed.sql` **only in that disposable database** if you want the synthetic test tenants. The seed creates a known CI-only password; do not use it for a persistent or reachable database.
 2. For ordinary local use, create your own PostgreSQL login with a private password and grant it `spm_app`. The login must not own the tables or have `BYPASSRLS`. Provision a synthetic tenant, principal and active `contributor` membership as database owner, or use the disposable CI seed.
-3. Set `SPM_DATABASE_URL` to that non-owner login's connection URL. Configure `SPM_LOCAL_USERS_JSON` as an array of local accounts. Each account needs a unique lowercase `username`, `displayName`, `tenantId`, `actorId` and `passwordHash`. The actor must have an active membership in that tenant. Use a password of at least 16 characters and generate its scrypt hash with `node src/hash-password.js`, passing the password through standard input. Keep the password and account JSON out of GitHub. For the disposable CI seed, the two tenant/actor pairs are in [seed.sql](test/seed.sql).
+3. Set `SPM_DATABASE_URL` to that non-owner login's connection URL. Configure `SPM_LOCAL_USERS_JSON` as an array of local accounts. Each account needs a unique lowercase `username`, `displayName`, `tenantId`, `actorId`, `role` and `passwordHash`. `role` must be `executive`, `policy`, `portfolio_manager`, `engagement_lead` or `viewer`. The actor must have an active membership in that tenant. Use a password of at least 16 characters and generate its scrypt hash with `node src/hash-password.js`, passing the password through standard input. Keep the password and account JSON out of GitHub. For the disposable CI seed, the two tenant/actor pairs are in [seed.sql](test/seed.sql).
 4. In `app/`, run `pnpm install --frozen-lockfile`, then `pnpm start`. Open `http://127.0.0.1:3000` and sign in.
 
 The server binds to loopback by default. A sample PowerShell setup for the **disposable synthetic seed** is:
@@ -20,11 +20,12 @@ $env:SPM_LOCAL_USERS_JSON = @(@{
   username = 'pilot-one'; displayName = 'Pilot one'
   tenantId = '00000000-0000-4000-8000-000000000001'
   actorId = '00000000-0000-4000-8000-000000000101'
+  role = 'executive'
   passwordHash = $hash
 }) | ConvertTo-Json -Compress
 ```
 
-The server stores opaque sessions in memory for eight hours; a restart signs users out. Login failures are temporarily limited in memory. Cookies are HTTP-only and SameSite Strict, and mutating requests require the expected `Origin`. Each request derives tenant and actor from its session; the database still checks active tenant membership and role. Do not put real tenant data into this disposable pilot. Before internet exposure, provide an HTTPS reverse proxy, a chosen temporary hostname, a firewall that blocks direct access to the Node port and private PostgreSQL, and set `SPM_PUBLIC_ORIGIN` to that exact HTTPS origin. Public-origin mode also requires the proxy to set `X-Forwarded-Proto: https`. This is an interim single-instance mechanism, not the production identity design.
+The server stores opaque sessions in memory for eight hours; a restart signs users out. Login failures are temporarily limited in memory. Cookies are HTTP-only and SameSite Strict, and mutating requests require the expected `Origin`. Each request derives tenant, actor and prototype role from its session. The server checks every write against the role-to-command matrix; the database separately checks active tenant membership and its coarse contributor permission. All roles can read tenant data and navigate all sections. Do not put real tenant data into this disposable pilot. Before internet exposure, provide an HTTPS reverse proxy, a chosen temporary hostname, a firewall that blocks direct access to the Node port and private PostgreSQL, and set `SPM_PUBLIC_ORIGIN` to that exact HTTPS origin. Public-origin mode also requires the proxy to set `X-Forwarded-Proto: https`. This is an interim single-instance mechanism, not the production identity design.
 
 ## Interface design
 
@@ -34,7 +35,7 @@ Date fields currently use native browser date controls styled with the GOV.UK in
 
 ## Command API
 
-`POST /api/commands/{strategy,objective,objective-update,objective-parent,outcome,measure,observation,observation-correction,portfolio,portfolio-parent,portfolio-retire,category,category-retire,investment,membership,alignment}` accepts JSON. `GET /api/workspace` returns tenant-scoped records. `GET /api/history/{schema}/{table}/{id}` returns entity revisions and audit events. The browser UI uses these endpoints. Writes require a synthetic active member with the `contributor` or `administrator` role. IDs and actor context are set on the server; request bodies cannot select a tenant or actor.
+`POST /api/commands/{command}` accepts JSON for commands listed in [the role matrix](src/permissions.js). `GET /api/workspace` returns tenant-scoped records. `GET /api/history/{schema}/{table}/{id}` returns entity revisions and audit events. The browser UI uses these endpoints. Writes require both an allowed application role and a synthetic active database member with the `contributor` or `administrator` role. IDs and actor context are set on the server; request bodies cannot select a tenant, actor or role.
 
 The candidate investment command creates **identity only** for US-003 membership. It does not approve or commit an investment. Strategy and portfolio hierarchy changes are serialized and reject cycles. PostgreSQL rejects duplicate tenant codes, cross-tenant references and overlapping membership periods; optimistic versions reject stale corrections and updates. The audit/history triggers run in the same transaction as writes.
 
@@ -42,4 +43,4 @@ The candidate investment command creates **identity only** for US-003 membership
 
 `pnpm test` always runs login and UI asset tests. It also runs the HTTP/database integration suite when `SPM_TEST_DATABASE_URL` points to a disposable, migrated database with `app/test/seed.sql` applied. Without that variable, only the database suite is skipped. The [CI workflow](../.github/workflows/validate-increment-1.yml) runs it against PostgreSQL 16 under a non-owner login.
 
-This slice still needs account provisioning and recovery procedures, richer role permissions, upload/source contracts, accessibility review, performance checks, and the production security/recovery controls in the [requirements](../requirements/build-increment-1.md). The M06 risk entities in canonical model v1.1 are outside Increment 1 and not in V007.
+This slice still needs production identity and account provisioning, recovery procedures, finer permissions, upload/source contracts, accessibility review, performance checks, and the production security/recovery controls in the [requirements](../requirements/build-increment-1.md). The M06 risk entities in canonical model v1.1 remain outside Increment 1.

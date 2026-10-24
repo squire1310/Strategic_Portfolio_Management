@@ -5,7 +5,7 @@ import { createAuth, hashPassword } from '../src/auth.js';
 
 test('GOV.UK Frontend assets and non-GOV.UK header are served locally', async () => {
   const auth = createAuth([{ username: 'pilot', tenantId: '00000000-0000-4000-8000-000000000001',
-    actorId: '00000000-0000-4000-8000-000000000101', passwordHash: hashPassword('test-password-long') }]);
+    actorId: '00000000-0000-4000-8000-000000000101', role: 'executive', passwordHash: hashPassword('test-password-long') }]);
   const server = createHttpServer({}, { auth });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -30,7 +30,10 @@ test('GOV.UK Frontend assets and non-GOV.UK header are served locally', async ()
     assert.match(html, /class="govuk-phase-banner"/);
     assert.match(html, /class="govuk-form-group"/);
     assert.match(html, /class="govuk-button"/);
+    assert.match(html, /href="\/policy"/);
+    assert.match(html, /href="\/investments"/);
     assert.doesNotMatch(html, /govuk-header__logotype|govuk-logo|GDS Transport/);
+    assert.equal((await fetch(`${base}/policy`, { headers: { cookie } })).status, 200);
     const stylesheet = await fetch(`${base}/govuk.css`);
     assert.equal(stylesheet.status, 200);
     const css = await stylesheet.text();
@@ -48,4 +51,3 @@ test('GOV.UK Frontend assets and non-GOV.UK header are served locally', async ()
     await new Promise(resolve => server.close(resolve));
   }
 });
-

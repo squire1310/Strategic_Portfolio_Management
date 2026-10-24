@@ -88,6 +88,20 @@ export function createStore({ connectionString, tenantId, actorId }) {
             VALUES (platform.current_tenant(),$1,$2,$3,daterange($4::date,$5::date,'[)'),platform.current_actor())
             RETURNING *`, [code(body.code), requiredText(body.name, 'name', 200), optionalText(body.description, 'description'), a, b]);
         }
+        case 'strategy-update': {
+          const updated = await client.query(`UPDATE m01_strategy.strategy SET name=$3,description=$4
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND status<>'retired' RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion), requiredText(body.name, 'name', 200), optionalText(body.description, 'description')]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or retired strategy');
+          return updated.rows[0];
+        }
+        case 'strategy-retire': {
+          const updated = await client.query(`UPDATE m01_strategy.strategy SET status='retired'
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND status<>'retired' RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion)]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or already retired strategy');
+          return updated.rows[0];
+        }
         case 'objective': {
           const priority = body.priority == null ? 3 : body.priority;
           if (!Number.isInteger(priority) || priority < 1 || priority > 5) throw new AppError(400, 'priority must be 1–5');
@@ -130,6 +144,21 @@ export function createStore({ connectionString, tenantId, actorId }) {
             (tenant_id,objective_id,code,statement,contribution_rationale,target_date,owner_id)
             VALUES (platform.current_tenant(),$1,$2,$3,$4,$5,platform.current_actor()) RETURNING *`,
             [uuid(body.objectiveId, 'objectiveId'), code(body.code), requiredText(body.statement, 'statement'), requiredText(body.contributionRationale, 'contributionRationale'), optionalDate(body.targetDate, 'targetDate')]);
+        case 'outcome-update': {
+          const updated = await client.query(`UPDATE m01_strategy.outcome SET statement=$3,contribution_rationale=$4,target_date=$5
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND status<>'retired' RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion), requiredText(body.statement, 'statement'),
+              requiredText(body.contributionRationale, 'contributionRationale'), optionalDate(body.targetDate, 'targetDate')]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or retired outcome');
+          return updated.rows[0];
+        }
+        case 'outcome-retire': {
+          const updated = await client.query(`UPDATE m01_strategy.outcome SET status='retired'
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND status<>'retired' RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion)]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or already retired outcome');
+          return updated.rows[0];
+        }
         case 'measure': {
           const direction = requiredText(body.direction, 'direction', 20);
           if (!['increase', 'decrease', 'maintain'].includes(direction)) throw new AppError(400, 'Invalid direction');
@@ -140,6 +169,26 @@ export function createStore({ connectionString, tenantId, actorId }) {
               body.baselineValue == null ? null : finiteNumber(body.baselineValue, 'baselineValue'),
               body.targetValue == null ? null : finiteNumber(body.targetValue, 'targetValue')]);
         }
+        case 'measure-update': {
+          const direction = requiredText(body.direction, 'direction', 20);
+          if (!['increase', 'decrease', 'maintain'].includes(direction)) throw new AppError(400, 'Invalid direction');
+          const updated = await client.query(`UPDATE m01_strategy.measure SET name=$3,unit=$4,direction=$5,
+            baseline_value=$6,target_value=$7 WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2
+            AND status<>'retired' RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion), requiredText(body.name, 'name', 200),
+              requiredText(body.unit, 'unit', 50), direction,
+              body.baselineValue == null ? null : finiteNumber(body.baselineValue, 'baselineValue'),
+              body.targetValue == null ? null : finiteNumber(body.targetValue, 'targetValue')]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or retired measure');
+          return updated.rows[0];
+        }
+        case 'measure-retire': {
+          const updated = await client.query(`UPDATE m01_strategy.measure SET status='retired'
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND status<>'retired' RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion)]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or already retired measure');
+          return updated.rows[0];
+        }
         case 'observation':
           return one(client, `INSERT INTO m01_strategy.measure_observation
             (tenant_id,measure_id,observed_on,value,evidence_uri)
@@ -147,9 +196,16 @@ export function createStore({ connectionString, tenantId, actorId }) {
             [uuid(body.measureId, 'measureId'), date(body.observedOn, 'observedOn'), finiteNumber(body.value, 'value'), requiredText(body.evidenceUri, 'evidenceUri', 1000)]);
         case 'observation-correction': {
           const updated = await client.query(`UPDATE m01_strategy.measure_observation
-            SET value=$3,evidence_uri=$4 WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 RETURNING *`,
+            SET value=$3,evidence_uri=$4 WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND NOT voided RETURNING *`,
             [uuid(body.id, 'id'), version(body.expectedVersion), finiteNumber(body.value, 'value'), requiredText(body.evidenceUri, 'correction evidence', 1000)]);
           if (!updated.rowCount) throw new AppError(409, 'Stale or missing observation');
+          return updated.rows[0];
+        }
+        case 'observation-void': {
+          const updated = await client.query(`UPDATE m01_strategy.measure_observation SET voided=true,void_reason=$3
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND NOT voided RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion), requiredText(body.reason, 'reason', 1000)]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or already voided observation');
           return updated.rows[0];
         }
         case 'portfolio':
@@ -157,6 +213,13 @@ export function createStore({ connectionString, tenantId, actorId }) {
             (tenant_id,parent_portfolio_id,code,name,owner_id)
             VALUES (platform.current_tenant(),$1,$2,$3,platform.current_actor()) RETURNING *`,
             [optionalUuid(body.parentPortfolioId, 'parentPortfolioId'), code(body.code), requiredText(body.name, 'name', 200)]);
+        case 'portfolio-update': {
+          const updated = await client.query(`UPDATE m02_portfolio.portfolio SET name=$3
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND status='active' RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion), requiredText(body.name, 'name', 200)]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or retired portfolio');
+          return updated.rows[0];
+        }
         case 'portfolio-retire': {
           const updated = await client.query(`UPDATE m02_portfolio.portfolio SET status='retired'
             WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND status='active' RETURNING *`,
@@ -184,6 +247,13 @@ export function createStore({ connectionString, tenantId, actorId }) {
           return one(client, `INSERT INTO m02_portfolio.investment_category
             (tenant_id,code,label) VALUES (platform.current_tenant(),$1,$2) RETURNING *`,
             [code(body.code), requiredText(body.label, 'label', 200)]);
+        case 'category-update': {
+          const updated = await client.query(`UPDATE m02_portfolio.investment_category SET label=$3
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND active RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion), requiredText(body.label, 'label', 200)]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or retired category');
+          return updated.rows[0];
+        }
         case 'category-retire': {
           const updated = await client.query(`UPDATE m02_portfolio.investment_category SET active=false
             WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND active RETURNING *`,
@@ -196,6 +266,22 @@ export function createStore({ connectionString, tenantId, actorId }) {
             (tenant_id,category_id,code,title,sponsor_id,owner_id)
             VALUES (platform.current_tenant(),$1,$2,$3,platform.current_actor(),platform.current_actor()) RETURNING *`,
             [uuid(body.categoryId, 'categoryId'), code(body.code), requiredText(body.title, 'title', 200)]);
+        case 'investment-update': {
+          const updated = await client.query(`UPDATE m05_investment.investment SET title=$3,category_id=$4
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND lifecycle='candidate' RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion), requiredText(body.title, 'title', 200), uuid(body.categoryId, 'categoryId')]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or no longer candidate investment');
+          return updated.rows[0];
+        }
+        case 'investment-retire': {
+          const updated = await client.query(`UPDATE m05_investment.investment SET lifecycle='cancelled'
+            WHERE tenant_id=platform.current_tenant() AND id=$1 AND row_version=$2 AND lifecycle='candidate'
+            AND NOT EXISTS (SELECT 1 FROM m02_portfolio.portfolio_membership pm
+              WHERE pm.tenant_id=platform.current_tenant() AND pm.investment_id=$1) RETURNING *`,
+            [uuid(body.id, 'id'), version(body.expectedVersion)]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, governed or still assigned investment');
+          return updated.rows[0];
+        }
         case 'membership': {
           const [a, b] = interval(body.startDate, body.endDate);
           const weight = body.weight == null ? 1 : finiteNumber(body.weight, 'weight');
@@ -205,12 +291,41 @@ export function createStore({ connectionString, tenantId, actorId }) {
             VALUES (platform.current_tenant(),$1,$2,daterange($3::date,$4::date,'[)'),$5) RETURNING *`,
             [uuid(body.portfolioId, 'portfolioId'), uuid(body.investmentId, 'investmentId'), a, b, weight]);
         }
+        case 'membership-update': {
+          const [a, b] = interval(body.startDate, body.endDate);
+          const weight = finiteNumber(body.weight, 'weight');
+          if (weight <= 0 || weight > 1) throw new AppError(400, 'weight must be greater than 0 and at most 1');
+          const updated = await client.query(`UPDATE m02_portfolio.portfolio_membership pm
+            SET membership_during=daterange($3::date,$4::date,'[)'),allocation_weight=$5
+            FROM m05_investment.investment i WHERE pm.tenant_id=platform.current_tenant() AND pm.id=$1
+            AND pm.row_version=$2 AND i.tenant_id=pm.tenant_id AND i.id=pm.investment_id
+            AND i.lifecycle='candidate' RETURNING pm.*`,
+            [uuid(body.id, 'id'), version(body.expectedVersion), a, b, weight]);
+          if (!updated.rowCount) throw new AppError(409, 'Stale, missing or governed portfolio assignment');
+          return updated.rows[0];
+        }
+        case 'membership-remove': {
+          const removed = await client.query(`DELETE FROM m02_portfolio.portfolio_membership pm
+            USING m05_investment.investment i WHERE pm.tenant_id=platform.current_tenant() AND pm.id=$1
+            AND pm.row_version=$2 AND i.tenant_id=pm.tenant_id AND i.id=pm.investment_id
+            AND i.lifecycle='candidate' RETURNING pm.*`,
+            [uuid(body.id, 'id'), version(body.expectedVersion)]);
+          if (!removed.rowCount) throw new AppError(409, 'Stale, missing or governed portfolio assignment');
+          return removed.rows[0];
+        }
         case 'alignment':
           return one(client, `INSERT INTO m02_portfolio.portfolio_objective
             (tenant_id,portfolio_id,objective_id,contribution)
             VALUES (platform.current_tenant(),$1,$2,$3)
             ON CONFLICT (tenant_id,portfolio_id,objective_id) DO UPDATE SET contribution=EXCLUDED.contribution RETURNING *`,
             [uuid(body.portfolioId, 'portfolioId'), uuid(body.objectiveId, 'objectiveId'), requiredText(body.contribution, 'contribution')]);
+        case 'alignment-remove': {
+          const removed = await client.query(`DELETE FROM m02_portfolio.portfolio_objective
+            WHERE tenant_id=platform.current_tenant() AND portfolio_id=$1 AND objective_id=$2 RETURNING *`,
+            [uuid(body.portfolioId, 'portfolioId'), uuid(body.objectiveId, 'objectiveId')]);
+          if (!removed.rowCount) throw new AppError(404, 'Alignment not found');
+          return removed.rows[0];
+        }
         default: throw new AppError(404, 'Unknown command');
       }
     }, { write: true, context });
@@ -256,4 +371,3 @@ export function httpError(error) {
   if (error.code === '42501') return { status: 403, message: 'Database permission denied' };
   return { status: 500, message: 'Internal error' };
 }
-

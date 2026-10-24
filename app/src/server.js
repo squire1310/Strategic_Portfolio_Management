@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createStore, httpError, AppError } from './domain.js';
 import { authFromEnvironment, sessionCookie, expiredSessionCookie } from './auth.js';
+import { canRunCommand } from './permissions.js';
 
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const files = {
@@ -13,6 +14,7 @@ const files = {
   '/login.js': ['login.js', 'text/javascript; charset=utf-8'],
   '/govuk.css': ['govuk.css', 'text/css; charset=utf-8']
 };
+const workspacePages = new Set(['/', '/strategy', '/policy', '/portfolios', '/investments', '/history']);
 
 function respond(res, status, body, contentType = 'application/json; charset=utf-8', extraHeaders = {}) {
   res.writeHead(status, {
@@ -65,9 +67,9 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         return respond(res, 200, { ok: true }, undefined, { 'set-cookie': expiredSessionCookie(secureCookie) });
       }
       if (req.method === 'GET' && path === '/login' && session) return respond(res, 303, '', 'text/plain; charset=utf-8', { location: '/' });
-      if (req.method === 'GET' && path === '/' && !session) return respond(res, 303, '', 'text/plain; charset=utf-8', { location: '/login' });
-      if (req.method === 'GET' && files[path]) {
-        const [name, type] = files[path];
+      if (req.method === 'GET' && workspacePages.has(path) && !session) return respond(res, 303, '', 'text/plain; charset=utf-8', { location: '/login' });
+      if (req.method === 'GET' && (files[path] || workspacePages.has(path))) {
+        const [name, type] = files[path] || files['/'];
         return respond(res, 200, await readFile(join(publicDir, name)), type);
       }
       if (path.startsWith('/api/') && !session) throw new AppError(401, 'Sign in required');
@@ -81,6 +83,7 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       if (req.method === 'POST' && path.startsWith('/api/commands/')) {
         const name = path.slice('/api/commands/'.length);
         if (!/^[a-z-]+$/.test(name)) throw new AppError(404, 'Unknown command');
+        if (!canRunCommand(session.user.role, name)) throw new AppError(403, 'Your role cannot change this record');
         return respond(res, 201, await store.command(name, await jsonBody(req), session.context));
       }
       throw new AppError(404, 'Not found');
@@ -102,4 +105,3 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   server.listen(port, bind, () => console.log(`SPM listening on ${bind}:${port}`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => store.close()));
 }
-

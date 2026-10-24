@@ -110,6 +110,9 @@ EOF
 chmod 0600 /root/spm-pilot-access.txt
 unset db_password pilot_password pilot_hash
 
+# Give the synthetic pilot one account for each maintenance role.
+node /opt/spm/deploy/aws-stockholm-pilot/provision-roles.mjs
+
 systemctl daemon-reload
 systemctl enable --now spm
 systemctl enable caddy

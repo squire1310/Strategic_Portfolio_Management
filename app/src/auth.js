@@ -1,4 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { roleCommands, commandsForRole } from './permissions.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const usernamePattern = /^[a-z][a-z0-9._-]{2,63}$/;
@@ -27,11 +28,12 @@ export function createAuth(users) {
   const byName = new Map();
   for (const user of users) {
     if (!usernamePattern.test(user.username || '') || !uuid.test(user.tenantId || '') || !uuid.test(user.actorId || '') ||
+        !Object.hasOwn(roleCommands, user.role) ||
         !/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{64}$/.test(user.passwordHash || '') || byName.has(user.username)) {
       throw new Error('Invalid or duplicate local account configuration');
     }
     byName.set(user.username, { username: user.username, displayName: user.displayName || user.username,
-      tenantId: user.tenantId, actorId: user.actorId, passwordHash: user.passwordHash });
+      tenantId: user.tenantId, actorId: user.actorId, role: user.role, passwordHash: user.passwordHash });
   }
   const sessions = new Map();
   const failures = new Map();
@@ -69,7 +71,8 @@ export function createAuth(users) {
   return { login, resolve, logout };
 }
 
-function publicUser(user) { return { username: user.username, displayName: user.displayName }; }
+function publicUser(user) { return { username: user.username, displayName: user.displayName,
+  role: user.role, allowedCommands: commandsForRole(user.role) }; }
 
 export function authFromEnvironment() {
   let users;
@@ -85,4 +88,3 @@ export function sessionCookie(token, secure) {
 export function expiredSessionCookie(secure) {
   return `spm_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure ? '; Secure' : ''}`;
 }
-

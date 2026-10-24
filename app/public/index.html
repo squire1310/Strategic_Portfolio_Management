@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Strategic Portfolio Management — local pilot</title>
+  <title>Strategic Portfolio Management — role-based pilot</title>
   <link rel="stylesheet" href="/govuk.css">
   <script src="/app.js" defer></script>
 </head>
@@ -17,15 +17,21 @@
     </div>
   </header>
   <div class="govuk-width-container">
-    <div class="govuk-phase-banner"><p class="govuk-phase-banner__content"><strong class="govuk-tag govuk-phase-banner__content__tag">Prototype</strong><span class="govuk-phase-banner__text">Local pilot using synthetic data and a configured test actor.</span></p></div>
+    <div class="govuk-phase-banner"><p class="govuk-phase-banner__content"><strong class="govuk-tag govuk-phase-banner__content__tag">Prototype</strong><span class="govuk-phase-banner__text">Synthetic data only. Responsibilities are separated by role.</span></p></div>
     <main class="govuk-main-wrapper" id="main-content">
-      <h1 class="govuk-heading-xl">Define strategic intent</h1>
-      <p class="govuk-body-l">Create strategies, outcomes and portfolio links.</p>
+      <h1 class="govuk-heading-xl" id="page-title">Strategic portfolio management</h1>
+      <p class="govuk-body-l" id="page-intro">Choose a section to view records and carry out your role's work.</p>
       <p class="govuk-body-s"><span id="signed-in-user"></span> <button class="govuk-button govuk-button--secondary" id="sign-out" type="button">Sign out</button></p>
     <div id="message" class="app-feedback" aria-live="polite"></div>
-    <nav aria-label="On this page"><h2 class="govuk-heading-s">On this page</h2><ul class="govuk-list"><li><a class="govuk-link" href="#strategy">Strategy and objectives</a></li><li><a class="govuk-link" href="#outcomes">Outcomes and measures</a></li><li><a class="govuk-link" href="#portfolio">Portfolio context</a></li><li><a class="govuk-link" href="#history">History and attribution</a></li></ul></nav>
+    <nav class="app-page-nav" aria-label="Service sections"><ul class="govuk-list">
+      <li><a class="govuk-link" href="/strategy">Strategy</a></li>
+      <li><a class="govuk-link" href="/policy">Objectives and outcomes</a></li>
+      <li><a class="govuk-link" href="/portfolios">Portfolios and categories</a></li>
+      <li><a class="govuk-link" href="/investments">Investments and assignments</a></li>
+      <li><a class="govuk-link" href="/history">Record history</a></li>
+    </ul></nav>
 
-    <section class="app-section" id="strategy">
+    <section class="app-section" id="strategy" hidden>
       <h2 class="govuk-heading-l">Strategy and objectives</h2>
       <div class="app-form-grid">
         <form class="app-form" data-command="strategy"><h3 class="govuk-heading-m">New strategy</h3>
@@ -58,7 +64,7 @@
       <div class="app-listing"><h3 class="govuk-heading-m">Objectives</h3><div id="objectives-list"></div></div>
     </section>
 
-    <section class="app-section" id="outcomes">
+    <section class="app-section" id="outcomes" hidden>
       <h2 class="govuk-heading-l">Outcomes and measures</h2>
       <div class="app-form-grid">
         <form class="app-form" data-command="outcome"><h3 class="govuk-heading-m">New outcome</h3>
@@ -98,7 +104,7 @@
       <div class="app-listing"><h3 class="govuk-heading-m">Observations</h3><div id="observations-list"></div></div>
     </section>
 
-    <section class="app-section" id="portfolio">
+    <section class="app-section" id="portfolio" hidden>
       <h2 class="govuk-heading-l">Portfolio context</h2>
       <div class="app-form-grid">
         <form class="app-form" data-command="portfolio"><h3 class="govuk-heading-m">New portfolio</h3>
@@ -151,11 +157,9 @@
       <div class="app-listing"><h3 class="govuk-heading-m">Strategic alignments</h3><div id="alignments-list"></div></div>
     </section>
 
-    <section class="app-section" id="history"><h2 class="govuk-heading-l">History and attribution</h2><p class="govuk-body">Select “History” on a record to inspect its saved versions and audit events.</p><div id="history-list"></div></section>
+    <section class="app-section" id="history" hidden><h2 class="govuk-heading-l">History and attribution</h2><p class="govuk-body">Select “History” on any record to inspect its saved versions and audit events.</p><div id="history-list"></div></section>
     </main>
   </div>
-  <footer class="govuk-footer" role="contentinfo"><div class="govuk-width-container"><div class="govuk-footer__meta"><div class="govuk-footer__meta-item govuk-footer__meta-item--grow"><p class="govuk-body-s">Strategic Portfolio Management local prototype</p></div></div></div></footer>
+  <footer class="govuk-footer" role="contentinfo"><div class="govuk-width-container"><div class="govuk-footer__meta"><div class="govuk-footer__meta-item govuk-footer__meta-item--grow"><p class="govuk-body-s">Strategic Portfolio Management synthetic-data prototype</p></div></div></div></footer>
 </body>
 </html>
-
-
