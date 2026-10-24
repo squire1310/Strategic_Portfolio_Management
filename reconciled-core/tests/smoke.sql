@@ -153,6 +153,16 @@ BEGIN
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'sponsor self approval was accepted'; END IF;
   PERFORM set_config('app.actor_id',approver_id::text,true);
+  blocked := false;
+  BEGIN
+    INSERT INTO m05_investment.investment_decision
+      (tenant_id,decision_body_id,decided_by,investment_id,subject_type,
+       subject_id,decision_type,rationale,decided_at,effective_on)
+      VALUES(platform.current_tenant(),body_id,approver_id,investment_id,'investment',
+        investment_id,'approve','Missing recommendation',clock_timestamp(),'2026-01-01');
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'first approval without recommendation was accepted'; END IF;
   INSERT INTO m05_investment.investment_decision
     (tenant_id,decision_body_id,decided_by,investment_id,recommendation_id,subject_type,
      subject_id,decision_type,rationale,decided_at,effective_on,approval_amount,approval_currency)
