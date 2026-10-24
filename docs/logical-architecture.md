@@ -3,6 +3,8 @@
 **Version:** 0.1 · **Status:** Proposed for architecture and product review · **Prepared:** 24 October 2026  
 **Scope:** Hybrid SPM platform with a native M01–M06 strategic core, essential platform services and optional native or integrated M07–M12 capabilities. This is a logical component and interaction design, not a deployment topology or claim of implementation.
 
+The [proposed AWS physical architecture](physical-architecture-aws.md) maps these components to deployable services, network zones and operational controls.
+
 ## Basis and decisions carried forward
 
 The architecture implements the approved [solution overview](solution-overview.md), [canonical domain model v1.0](../reconciled-core/docs/canonical-domain-model-v1.0.md) and [domain decisions D01–D10](../reconciled-core/docs/domain-decisions-v1.0.md). It responds to the [user stories](../requirements/user-stories.md), [functional requirements](../requirements/functional-requirements.md) and [non-functional requirements](../requirements/non-functional-requirements.md). The [reconciled core](../reconciled-core/README.md) is the current persistence candidate; the root-level inferred schema is an earlier draft. The [validation record](../reconciled-core/docs/validation.md) reports the SQL scope actually tested, not service readiness.
