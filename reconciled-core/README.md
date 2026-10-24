@@ -31,5 +31,5 @@ Migrations assume a database owner able to create extensions, schemas, and NOLOG
 
 ## Validation status
 
-Migrations V001–V005 and their smoke test passed on PostgreSQL 16 in the repository's [schema validation workflow](https://github.com/squire1310/Strategic_Portfolio_Management/actions/runs/40076526020). V006 requires validation on the implementation branch. PostgreSQL binaries were unavailable locally. The approved policy's [implementation gaps](docs/domain-decisions-v1.0.md) and service-level checks in [assumptions and limits](docs/assumptions.md) remain outstanding. See [validation details](docs/validation.md).
+All six migrations and the expanded smoke test passed on PostgreSQL 16 in the repository's [schema validation workflow](https://github.com/squire1310/Strategic_Portfolio_Management/actions/runs/40078800159). PostgreSQL binaries were unavailable locally. The approved policy's [implementation gaps](docs/domain-decisions-v1.0.md) and service-level checks in [assumptions and limits](docs/assumptions.md) remain outstanding. See [validation details](docs/validation.md).
 
