@@ -12,9 +12,12 @@ SELECT platform.seed_tenant_references(platform.current_tenant());
 
 DO $$
 DECLARE actor_id uuid; strategy_id uuid; objective_id uuid; portfolio_id uuid; category_id uuid;
-        demand_id uuid; case_id uuid; model_id uuid; criterion_id uuid; assessment_id uuid;
-        scenario_id uuid; recommendation_id uuid; body_id uuid; investment_id uuid;
-        decision_id uuid; reject_decision_id uuid; v_baseline_id uuid; successor_id uuid; other_actor uuid;
+        demand_id uuid; case_id uuid; case_revision_id uuid; model_id uuid; criterion_id uuid; v_assessment_id uuid;
+        scenario_id uuid; investment_scenario_id uuid; recommendation_id uuid;
+        investment_recommendation_id uuid; body_id uuid; investment_id uuid;
+        v_investment_assessment_id uuid;
+        decision_id uuid; reject_decision_id uuid; v_baseline_id uuid; successor_id uuid;
+        partial_id uuid; partial_decision_id uuid; other_actor uuid;
         blocked boolean;
 BEGIN
   actor_id := platform.current_actor();
@@ -41,29 +44,85 @@ BEGIN
   INSERT INTO m03_demand.business_case(tenant_id,demand_id,owner_id,title)
     VALUES(platform.current_tenant(),demand_id,actor_id,'Case') RETURNING id INTO case_id;
   INSERT INTO m03_demand.case_revision(tenant_id,business_case_id,revision_no,summary,options,assumptions,prepared_by)
-    VALUES(platform.current_tenant(),case_id,1,'First case','[]'::jsonb,'[]'::jsonb,actor_id);
+    VALUES(platform.current_tenant(),case_id,1,'First case','[]'::jsonb,'[]'::jsonb,actor_id)
+    RETURNING id INTO case_revision_id;
   INSERT INTO m04_selection.scoring_model(tenant_id,code,name,owner_id,effective_during)
     VALUES(platform.current_tenant(),'model','Model',actor_id,daterange('2026-01-01',NULL,'[)'))
     RETURNING id INTO model_id;
   INSERT INTO m04_selection.criterion(tenant_id,scoring_model_id,code,name,weight,maximum_score,direction)
     VALUES(platform.current_tenant(),model_id,'value','Value',1,5,'higher') RETURNING id INTO criterion_id;
-  INSERT INTO m04_selection.assessment(tenant_id,demand_id,scoring_model_id,assessor_id,status,completed_at)
-    VALUES(platform.current_tenant(),demand_id,model_id,actor_id,'completed',clock_timestamp())
-    RETURNING id INTO assessment_id;
+  UPDATE m04_selection.scoring_model SET status='active'
+    WHERE tenant_id=platform.current_tenant() AND id=model_id;
+  INSERT INTO m04_selection.assessment(tenant_id,demand_id,scoring_model_id,assessor_id,case_revision_id)
+    VALUES(platform.current_tenant(),demand_id,model_id,actor_id,case_revision_id)
+    RETURNING id INTO v_assessment_id;
   INSERT INTO m04_selection.criterion_score(tenant_id,assessment_id,scoring_model_id,criterion_id,score,evidence)
-    VALUES(platform.current_tenant(),assessment_id,model_id,criterion_id,4,'Evidence');
+    VALUES(platform.current_tenant(),v_assessment_id,model_id,criterion_id,4,'Evidence');
+  UPDATE m04_selection.assessment SET status='completed',completed_at=clock_timestamp()
+    WHERE tenant_id=platform.current_tenant() AND id=v_assessment_id;
   INSERT INTO m04_selection.scenario(tenant_id,code,name,scoring_model_id,owner_id)
     VALUES(platform.current_tenant(),'scenario','Scenario',model_id,actor_id) RETURNING id INTO scenario_id;
+  INSERT INTO m04_selection.scenario_candidate
+    (tenant_id,scenario_id,demand_id,assessment_id,rank,aggregate_score,inclusion)
+    VALUES(platform.current_tenant(),scenario_id,demand_id,v_assessment_id,1,4,'selected');
+  UPDATE m04_selection.scenario SET status='locked'
+    WHERE tenant_id=platform.current_tenant() AND id=scenario_id;
   INSERT INTO m04_selection.selection_recommendation
     (tenant_id,scenario_id,demand_id,recommendation,rationale,proposed_by)
     VALUES(platform.current_tenant(),scenario_id,demand_id,'select','Recommended',actor_id)
     RETURNING id INTO recommendation_id;
+  IF NOT EXISTS (SELECT 1 FROM m04_selection.selection_recommendation
+    WHERE tenant_id=platform.current_tenant() AND id=recommendation_id
+      AND basis_snapshot ? 'case_revision' AND basis_snapshot ? 'scores') THEN
+    RAISE EXCEPTION 'recommendation basis was not frozen';
+  END IF;
   INSERT INTO m06_governance.decision_body(tenant_id,code,name,remit,chair_id)
     VALUES(platform.current_tenant(),'board','Board','Investment decisions',actor_id) RETURNING id INTO body_id;
   INSERT INTO m05_investment.investment
     (tenant_id,origin_demand_id,category_id,code,title,sponsor_id,owner_id)
     VALUES(platform.current_tenant(),demand_id,category_id,'investment','Investment',actor_id,actor_id)
     RETURNING id INTO investment_id;
+  INSERT INTO m04_selection.assessment
+    (tenant_id,investment_id,investment_version_no,scoring_model_id,assessor_id)
+    VALUES(platform.current_tenant(),investment_id,1,model_id,actor_id)
+    RETURNING id INTO v_investment_assessment_id;
+  blocked := false;
+  BEGIN
+    INSERT INTO m04_selection.criterion_score
+      (tenant_id,assessment_id,scoring_model_id,criterion_id,score,evidence)
+      VALUES(platform.current_tenant(),v_investment_assessment_id,model_id,criterion_id,6,'Too high');
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'score above criterion maximum was accepted'; END IF;
+  INSERT INTO m04_selection.criterion_score
+    (tenant_id,assessment_id,scoring_model_id,criterion_id,score,evidence)
+    VALUES(platform.current_tenant(),v_investment_assessment_id,model_id,criterion_id,4,'Current performance');
+  UPDATE m04_selection.assessment SET status='completed',completed_at=clock_timestamp()
+    WHERE tenant_id=platform.current_tenant() AND id=v_investment_assessment_id;
+  INSERT INTO m04_selection.scenario(tenant_id,code,name,scoring_model_id,owner_id)
+    VALUES(platform.current_tenant(),'investment_scenario','Investment scenario',model_id,actor_id)
+    RETURNING id INTO investment_scenario_id;
+  INSERT INTO m04_selection.scenario_candidate
+    (tenant_id,scenario_id,investment_id,assessment_id,rank,aggregate_score,inclusion)
+    VALUES(platform.current_tenant(),investment_scenario_id,investment_id,v_investment_assessment_id,1,4,'selected');
+  UPDATE m04_selection.scenario SET status='locked'
+    WHERE tenant_id=platform.current_tenant() AND id=investment_scenario_id;
+  INSERT INTO m04_selection.selection_recommendation
+    (tenant_id,scenario_id,investment_id,recommendation,rationale,proposed_by)
+    VALUES(platform.current_tenant(),investment_scenario_id,investment_id,'select','Renew investment',actor_id)
+    RETURNING id INTO investment_recommendation_id;
+  IF NOT EXISTS (SELECT 1 FROM m04_selection.selection_recommendation
+    WHERE tenant_id=platform.current_tenant() AND id=investment_recommendation_id
+      AND basis_snapshot->'investment_revision' IS NOT NULL) THEN
+    RAISE EXCEPTION 'investment recommendation basis was not frozen';
+  END IF;
+  UPDATE m05_investment.investment SET title='Investment updated later'
+    WHERE tenant_id=platform.current_tenant() AND id=investment_id;
+  IF NOT EXISTS (SELECT 1 FROM m04_selection.selection_recommendation
+    WHERE tenant_id=platform.current_tenant() AND id=investment_recommendation_id
+      AND basis_snapshot->'investment_revision'->>'title'='Investment') THEN
+    RAISE EXCEPTION 'recommendation basis changed with investment';
+  END IF;
   INSERT INTO m02_portfolio.portfolio_membership
     (tenant_id,portfolio_id,investment_id,membership_during)
     VALUES(platform.current_tenant(),portfolio_id,investment_id,daterange('2026-01-01',NULL,'[)'));
@@ -72,6 +131,11 @@ BEGIN
      subject_id,decision_type,rationale,decided_at,effective_on)
     VALUES(platform.current_tenant(),body_id,actor_id,investment_id,recommendation_id,'investment',
       investment_id,'approve','Approved',clock_timestamp(),'2026-01-01') RETURNING id INTO decision_id;
+  INSERT INTO m05_investment.investment_decision
+    (tenant_id,decision_body_id,decided_by,investment_id,recommendation_id,subject_type,
+     subject_id,decision_type,rationale,decided_at,effective_on)
+    VALUES(platform.current_tenant(),body_id,actor_id,investment_id,investment_recommendation_id,
+      'investment',investment_id,'condition','Review later',clock_timestamp(),'2026-01-01');
   INSERT INTO m05_investment.commitment
     (tenant_id,investment_id,approving_decision_id,commitment_type,numeric_limit,unit,effective_during)
     VALUES(platform.current_tenant(),investment_id,decision_id,'funding',100000,'GBP',
@@ -100,6 +164,20 @@ BEGIN
       AND id=v_baseline_id AND status='superseded' AND NOT upper_inf(recorded_during)) THEN
     RAISE EXCEPTION 'baseline supersession failed';
   END IF;
+  INSERT INTO m06_governance.baseline(tenant_id,portfolio_id,baseline_type,label,created_by,valid_during)
+    VALUES(platform.current_tenant(),portfolio_id,'portfolio','Partial overlap',actor_id,
+      tstzrange('2026-06-01','2027-01-01','[)')) RETURNING id INTO partial_id;
+  INSERT INTO m05_investment.investment_decision
+    (tenant_id,decision_body_id,decided_by,subject_type,subject_id,decision_type,rationale,decided_at,effective_on)
+    VALUES(platform.current_tenant(),body_id,actor_id,'baseline',partial_id,'approve',
+      'Attempt partial successor',transaction_timestamp(),'2026-06-01') RETURNING id INTO partial_decision_id;
+  blocked := false;
+  BEGIN
+    UPDATE m06_governance.baseline SET status='approved',approved_decision_id=partial_decision_id,
+      approved_at=clock_timestamp() WHERE tenant_id=platform.current_tenant() AND id=partial_id;
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'partially overlapping successor was approved'; END IF;
   blocked := false;
   BEGIN
     UPDATE m06_governance.baseline_item SET snapshot='{"changed":true}'::jsonb
@@ -107,6 +185,20 @@ BEGIN
   EXCEPTION WHEN raise_exception THEN blocked := true;
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'approved baseline item was mutable'; END IF;
+  blocked := false;
+  BEGIN
+    UPDATE m04_selection.criterion SET weight=0.5
+      WHERE tenant_id=platform.current_tenant() AND id=criterion_id;
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'activated scoring criterion was mutable'; END IF;
+  blocked := false;
+  BEGIN
+    UPDATE m04_selection.criterion_score SET score=3
+      WHERE tenant_id=platform.current_tenant() AND assessment_id=v_assessment_id;
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'completed assessment score was mutable'; END IF;
   blocked := false;
   BEGIN
     UPDATE m05_investment.investment_decision SET rationale='Changed'

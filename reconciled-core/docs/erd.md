@@ -74,13 +74,17 @@ erDiagram
   SCORING_MODEL ||--o{ CRITERION : weights
   SCORING_MODEL ||--o{ ASSESSMENT : governs
   DEMAND ||--o{ ASSESSMENT : evaluated
+  INVESTMENT ||--o{ ASSESSMENT : reevaluated
+  CASE_REVISION o|--o{ ASSESSMENT : basis
   ASSESSMENT ||--o{ CRITERION_SCORE : contains
   CRITERION ||--o{ CRITERION_SCORE : scored
   SCORING_MODEL ||--o{ SCENARIO : used_by
   SCENARIO ||--o{ SCENARIO_CANDIDATE : compares
   DEMAND ||--o{ SCENARIO_CANDIDATE : considered
+  INVESTMENT ||--o{ SCENARIO_CANDIDATE : reconsidered
   SCENARIO ||--o{ RECOMMENDATION : proposes
   DEMAND ||--o{ RECOMMENDATION : proposed
+  INVESTMENT ||--o{ RECOMMENDATION : proposed
   DECISION_BODY ||--o{ INVESTMENT_DECISION : authorises
   RECOMMENDATION o|--o{ INVESTMENT_DECISION : informs
   INVESTMENT ||--o{ INVESTMENT_DECISION : decided
@@ -149,6 +153,8 @@ erDiagram
                   uuid item_id PK }
   DEMAND { uuid tenant_id PK
            uuid id PK }
+  CASE_REVISION { uuid tenant_id PK
+                  uuid id PK }
 ```
 
 `INVESTMENT_DECISION.subject_id` refers to either its investment or a baseline. `BASELINE_ITEM.item_id` can point to several frozen core types. These are validated in the M05/M06 command services because a single SQL FK cannot express a typed polymorphic target.

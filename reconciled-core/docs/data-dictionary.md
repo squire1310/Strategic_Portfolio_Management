@@ -27,13 +27,13 @@ This dictionary traces the newly authored [canonical model v0.4 draft](canonical
 | M03 `demand_objective` | Proposed alignment | Demand/objective pair PK | Link; service governed |
 | M03 `business_case` | Case header | One per demand | Versioned |
 | M03 `case_revision` | Submitted options and assumptions snapshot | Case/revision number unique | Immutable; audit/outbox |
-| M04 `scoring_model` | Evaluation method | Tenant code; effective dates | Versioned |
-| M04 `criterion` | Weighted dimension | Unique model/code; weight 0–1 | Versioned |
-| M04 `assessment` | Demand evaluation | Demand/model/assessor | Versioned |
-| M04 `criterion_score` | One score per criterion in assessment | Composite FKs ensure same scoring model | Versioned |
-| M04 `scenario` | Selection configuration | Tenant code; model | Versioned |
-| M04 `scenario_candidate` | Ranked demand in scenario | Unique scenario/demand | Versioned |
-| M04 `selection_recommendation` | Proposed selection outcome | Scenario and demand | Immutable; no approval effect |
+| M04 `scoring_model` | Evaluation method | Tenant code; effective dates; weights total 1 when activated | Formula frozen after activation |
+| M04 `criterion` | Weighted dimension | Unique model/code; weight 0–1 | Versioned while model draft; then frozen |
+| M04 `assessment` | Demand or investment evaluation | Exactly one subject; model; case revision or investment version | Complete scores required; frozen when completed |
+| M04 `criterion_score` | One bounded score per criterion | Composite FKs ensure same scoring model; score at most criterion maximum | Versioned while assessment draft |
+| M04 `scenario` | Selection configuration | Tenant code; model | Versioned while draft; then frozen |
+| M04 `scenario_candidate` | Ranked demand or investment | Unique scenario/subject; completed assessment | Versioned while scenario draft |
+| M04 `selection_recommendation` | Proposed selection outcome | Scenario and demand/investment; database-frozen basis snapshot | Immutable; no approval effect |
 | M05 `investment` | Stable canonical investment | Optional unique origin demand; M02 category | Versioned; approved lifecycle needs decision |
 | M05 `investment_decision` | Authorised choice or baseline approval | M06 body, actor, subject; supersedes chain | Immutable; chair or delegation checked |
 | M05 `commitment` | Approved funding/capacity/scope/schedule envelope | Same-investment approving decision | Immutable; approval checked |
@@ -52,7 +52,8 @@ This dictionary traces the newly authored [canonical model v0.4 draft](canonical
 - All root updates increment `row_version` in a trigger. A command should use `WHERE tenant_id = ? AND id = ? AND row_version = ?` to detect concurrent edits.
 - `entity_revision.valid_during` is the asserted business-effective interval; `recorded_during` is when this database held that version. It stores full JSON row snapshots. `baseline` has its own business-valid and recorded ranges.
 - `case_revision`, `selection_recommendation`, `investment_decision`, `commitment`, and `commitment_amendment` are insert-only. Corrections create new records with lineage.
-- Approval of a baseline closes the recorded interval of an earlier overlapping approved baseline of the same type and portfolio. GiST exclusion prevents two simultaneous approved interpretations.
+- Mutable portfolio/demand alignment links, baseline draft items, source-system registrations and tenant memberships now emit audit and outbox records. Their surrogate IDs are stable even where business uniqueness remains a composite key.
+- Approval of a baseline closes the recorded interval of an earlier approved baseline of the same type, portfolio, and **identical** business-valid interval. A partial overlap is rejected because closing the entire prior interval would lose unaffected valid time. GiST exclusion prevents two simultaneous approved interpretations.
 - `source_identity.canonical_id`, `investment_decision.subject_id` for baselines, and `baseline_item.item_id` are typed polymorphic references. Their owning services verify target existence and scope before writing.
 - Primary and unique keys provide tenant-first access. Additional indexes cover outbox pending, inbox unprocessed, source identity reverse lookup, assessment/recommendation/decision history, delegation, portfolio membership reverse lookup, and baseline portfolio queries. Reporting workloads should be measured before adding more indexes.
 

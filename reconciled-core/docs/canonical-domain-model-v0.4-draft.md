@@ -11,7 +11,7 @@ M01–M06 are the native strategic core. M07 Finance, M08 Resources, M09 Roadmap
 | M01 Strategy & Outcomes | Strategy, Objective, Outcome, Measure, MeasureObservation | Platform identity and source registration |
 | M02 Portfolio Architecture | Portfolio, InvestmentCategory, PortfolioObjective, PortfolioMembership | M01 objectives; M05 investments |
 | M03 Demand & Business Cases | Demand, DemandObjective, BusinessCase, CaseRevision | M01 objectives; Platform principals |
-| M04 Prioritisation & Selection | ScoringModel, Criterion, Assessment, CriterionScore, Scenario, ScenarioCandidate, SelectionRecommendation | M03 demand; M01 objectives |
+| M04 Prioritisation & Selection | ScoringModel, Criterion, Assessment, CriterionScore, Scenario, ScenarioCandidate, SelectionRecommendation | M03 demand; M05 investments; M01 objectives |
 | M05 Investment Decisions & Commitments | Investment, InvestmentDecision, Commitment, CommitmentAmendment | M03 origin demand, M04 recommendation, M06 decision body |
 | M06 Governance & Assurance | DecisionBody, Gate, Delegation, AssuranceFinding, GovernanceException, GovernanceAction, Baseline, BaselineItem | M02 portfolio; M05 decision/investment |
 | Platform | Tenant, Principal, TenantMember, SourceSystem, SourceIdentity, Inbox, Outbox, AuditEvent, EntityRevision, reference codes | Tenant-scoped common services |
@@ -35,16 +35,16 @@ All tenant-owned entities have a stable UUID `id` paired with `tenant_id`; natur
 | DemandObjective | Demand N:M Objective | alignment rationale | relationship changes governed by service |
 | BusinessCase | Demand 1:1 | owner, status, current narrative | draft/submitted/retired; versioned |
 | CaseRevision | BusinessCase 1:N | revision number, option and assumption snapshot, submitted time | immutable append-only; revision number unique per case |
-| ScoringModel | Tenant 1:N | code, name, status, effective period | draft/active/retired; versioned |
-| Criterion | ScoringModel 1:N | code, weight, scoring range, direction | versioned; active model weights total 1 by service validation |
-| Assessment | Demand N:1; ScoringModel N:1 | assessor, date, rationale | draft/completed/void; versioned |
+| ScoringModel | Tenant 1:N | code, name, status, effective period | draft/active/retired; criteria weights total 1 at activation; formula immutable thereafter |
+| Criterion | ScoringModel 1:N | code, weight, scoring range, direction | versioned while model is draft; immutable after activation |
+| Assessment | Demand or Investment N:1; ScoringModel N:1 | assessor, case revision or investment version, date, rationale | draft/completed/void; complete scores required; immutable once completed |
 | CriterionScore | Assessment 1:N; Criterion 1:N | score, evidence | one score per criterion per assessment |
 | Scenario | Tenant 1:N; ScoringModel N:1 | code, name, constraint snapshot, owner | draft/locked/archived; versioned |
-| ScenarioCandidate | Scenario N:M Demand | rank, aggregate score, inclusion state | versioned; one candidate per demand per scenario |
-| SelectionRecommendation | Scenario 1:N; Demand 1:N | recommendation, rationale, proposed by/at | immutable append-only; not an approval |
+| ScenarioCandidate | Scenario N:M Demand or Investment | rank, aggregate score, assessment, inclusion state | versioned while draft; one candidate per subject per scenario |
+| SelectionRecommendation | Scenario 1:N; Demand or Investment 1:N | recommendation, rationale, proposed by/at, frozen basis | immutable append-only; not an approval |
 | Investment | optional origin Demand 0:1 | code, title, category, sponsor, owner, execution mode | candidate/approved/active/paused/closed/cancelled; versioned |
 | InvestmentDecision | Investment 1:N; DecisionBody 1:N; optional Recommendation 0:1 | decision type, authority, rationale, conditions, effective date, supersedes | immutable append-only; supersession records correction |
-| Commitment | Investment 1:N; approving InvestmentDecision 1:1 or 1:N | type (funding/capacity/scope/schedule), currency/unit, envelope, valid period | approved/superseded; immutable |
+| Commitment | Investment 1:N; approving InvestmentDecision 1:1 or 1:N | type (funding/capacity/scope/schedule), currency/unit, envelope, valid period | immutable; amendments express later approved changes |
 | CommitmentAmendment | Commitment 1:N; InvestmentDecision 1:1 | delta or replacement envelope and rationale | immutable append-only; resulting state computed from lineage |
 | DecisionBody | Tenant 1:N | code, name, remit, chair | versioned |
 | Gate | Tenant 1:N | code, name, applicable lifecycle stage | versioned |
@@ -57,10 +57,10 @@ All tenant-owned entities have a stable UUID `id` paired with `tenant_id`; natur
 
 ## Cross-module invariants
 
-1. A demand can originate at most one investment. The demand and business case remain immutable historical evidence after promotion; new case revisions may support a later decision.
-2. M04 recommendations never change investment or commitment state. M05 decisions require an authorised M06 decision body and record the decision-maker, basis, conditions, and effective date.
+1. A demand can originate at most one investment. Promotion never erases the originating demand. Each submitted case revision is immutable; the demand and case header may receive later, audited updates.
+2. M04 evaluates both proposed demand and existing investments. An active scoring model and its criteria are frozen; a completed assessment cites a submitted case revision or investment row version and contains a complete score set. A locked scenario freezes its candidates. Each recommendation stores the case/investment, scoring, assessment, and scenario basis used for the proposal. Recommendations never change investment or commitment state. M05 decisions require an authorised M06 decision body and record the decision-maker, basis, conditions, and effective date.
 3. A commitment must reference an approving investment decision for the same investment. Amendments reference later approving decisions and never rewrite the original commitment.
-4. M06 baselines freeze selected records and their exact versions. An approval references a matching M05 investment decision whose subject is the baseline. The governance service validates every polymorphic snapshot reference and the portfolio membership at approval time.
+4. M06 baselines freeze selected records and their exact versions. An approval references a matching M05 investment decision whose subject is the baseline. A successor can close the prior recorded interval only when its business-valid interval is identical; partial overlap requires explicit split design. The governance service validates every polymorphic snapshot reference and the portfolio membership at approval time.
 5. Platform `SourceIdentity` maps an external key to one canonical identity. M01 observations and optional future M07–M11 facts retain source metadata. Source authority and conflict rules are explicit integration policy, not inferred from the latest write.
 6. Records use `row_version` for optimistic concurrency. The database captures transaction-time history and business-valid intervals for mutable roots. Decisions, case revisions, commitment changes, and audit entries are append-only. Approved baseline history uses both valid and recorded intervals.
 7. An application command runs under one tenant and one active tenant member. Module APIs enforce lifecycle transitions, delegation, scoring completeness, cycle prevention, and aggregate financial/capacity limits. PostgreSQL enforces tenant keys, row-level isolation, local ranges, uniqueness, and immutability where feasible.
@@ -70,5 +70,5 @@ All tenant-owned entities have a stable UUID `id` paired with `tenant_id`; natur
 - M02 owns portfolio membership despite the M05 investment FK. M05 never writes M02 tables.
 - M03 owns business cases even after investment creation; M05 references the originating demand and M04 recommendation without copying their mutable rows.
 - M07/M08 may later consume M05 commitment envelopes but cannot rewrite them. Posted financial actuals and individual HR details remain outside this release.
-- Delegation thresholds, voting/quorum, scoring weights, fiscal calendars, currency conversion, retention periods, and document evidence storage require tenant policy. The physical schema leaves room for them without pretending those rules are settled.
+- Delegation thresholds, voting/quorum, scoring interpretation and rank calculation, fiscal calendars, currency conversion, retention periods, and document evidence storage require tenant policy. SQL ensures weights total 1 at activation and scores are within criterion maxima, while the business scoring formula remains a policy choice.
 
