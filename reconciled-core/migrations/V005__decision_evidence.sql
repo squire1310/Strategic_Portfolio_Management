@@ -14,6 +14,8 @@ ALTER TABLE m04_selection.assessment
   ADD CONSTRAINT assessment_basis_matches_subject
     CHECK ((demand_id IS NOT NULL AND investment_version_no IS NULL)
         OR (investment_id IS NOT NULL AND case_revision_id IS NULL)),
+  ADD CONSTRAINT assessment_investment_version_positive
+    CHECK (investment_version_no IS NULL OR investment_version_no > 0),
   ADD CONSTRAINT completed_assessment_has_basis
     CHECK (status <> 'completed' OR
       (demand_id IS NOT NULL AND case_revision_id IS NOT NULL) OR
@@ -113,7 +115,8 @@ CREATE TRIGGER criterion_score_guard BEFORE INSERT OR UPDATE OR DELETE ON m04_se
 
 CREATE FUNCTION m04_selection.guard_assessment() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE case_demand uuid; current_investment_version integer;
-        model_status text; expected_count integer; actual_count integer;
+        model_status text; model_effective daterange;
+        expected_count integer; actual_count integer;
 BEGIN
   IF TG_OP='UPDATE' AND OLD.status='completed' THEN
     RAISE EXCEPTION 'completed assessment is immutable; create a new assessment';
@@ -134,9 +137,12 @@ BEGIN
         RAISE EXCEPTION 'assessment must cite the current investment version';
       END IF;
     END IF;
-    SELECT status INTO model_status FROM m04_selection.scoring_model
+    SELECT status,effective_during INTO model_status,model_effective FROM m04_selection.scoring_model
       WHERE tenant_id=NEW.tenant_id AND id=NEW.scoring_model_id;
     IF model_status<>'active' THEN RAISE EXCEPTION 'assessment requires active scoring model'; END IF;
+    IF (NEW.completed_at::date <@ model_effective) IS DISTINCT FROM true THEN
+      RAISE EXCEPTION 'assessment completion falls outside model effective period';
+    END IF;
     SELECT count(*) INTO expected_count FROM m04_selection.criterion
       WHERE tenant_id=NEW.tenant_id AND scoring_model_id=NEW.scoring_model_id;
     SELECT count(*) INTO actual_count FROM m04_selection.criterion_score
@@ -144,6 +150,12 @@ BEGIN
     IF actual_count<>expected_count THEN
       RAISE EXCEPTION 'assessment requires exactly one score per criterion';
     END IF;
+    IF EXISTS (
+      SELECT 1 FROM m04_selection.criterion_score x
+      JOIN m04_selection.criterion k ON k.tenant_id=x.tenant_id AND k.id=x.criterion_id
+      WHERE x.tenant_id=NEW.tenant_id AND x.assessment_id=NEW.id
+        AND x.score>k.maximum_score
+    ) THEN RAISE EXCEPTION 'assessment contains score above criterion maximum'; END IF;
   END IF;
   RETURN NEW;
 END $$;
@@ -325,4 +337,51 @@ REVOKE EXECUTE ON FUNCTION m04_selection.guard_scoring_model(),m04_selection.gua
   m04_selection.guard_criterion_score(),m04_selection.guard_assessment(),
   m04_selection.guard_scenario(),m04_selection.guard_scenario_candidate(),
   m04_selection.freeze_recommendation_basis(),platform.guard_link_identity() FROM PUBLIC;
+
+-- Closing an entire recorded interval is only correct for an identical business-valid interval.
+CREATE OR REPLACE FUNCTION m06_governance.guard_baseline() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, m06_governance AS $$
+DECLARE d m05_investment.investment_decision%ROWTYPE; approval_time timestamptz;
+BEGIN
+  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'baseline is immutable; approve a successor'; END IF;
+  IF TG_OP='UPDATE' THEN
+    IF OLD.status IN ('approved','superseded') THEN
+      IF pg_trigger_depth() <= 1 OR OLD.status <> 'approved' OR NEW.status <> 'superseded'
+         OR NEW.recorded_during IS NOT DISTINCT FROM OLD.recorded_during
+         OR (to_jsonb(NEW)-'status'-'recorded_during') IS DISTINCT FROM
+            (to_jsonb(OLD)-'status'-'recorded_during') THEN
+        RAISE EXCEPTION 'approved baseline is immutable';
+      END IF;
+      RETURN NEW;
+    END IF;
+    IF NEW.tenant_id<>OLD.tenant_id OR NEW.id<>OLD.id OR NEW.portfolio_id<>OLD.portfolio_id THEN
+      RAISE EXCEPTION 'baseline identity and portfolio are immutable';
+    END IF;
+  END IF;
+  IF NEW.status='approved' THEN
+    SELECT * INTO d FROM m05_investment.investment_decision
+      WHERE tenant_id=NEW.tenant_id AND id=NEW.approved_decision_id;
+    IF NOT FOUND OR d.decision_type<>'approve' OR d.subject_type<>'baseline'
+       OR d.subject_id<>NEW.id OR NEW.approved_at<d.decided_at THEN
+      RAISE EXCEPTION 'baseline requires its own approving investment decision';
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM m06_governance.baseline b
+      WHERE b.tenant_id=NEW.tenant_id AND b.portfolio_id=NEW.portfolio_id
+        AND b.baseline_type=NEW.baseline_type AND b.status='approved'
+        AND b.valid_during && NEW.valid_during AND b.valid_during<>NEW.valid_during
+        AND b.id<>NEW.id
+    ) THEN
+      RAISE EXCEPTION 'successor baseline must use the exact prior valid interval';
+    END IF;
+    approval_time := clock_timestamp();
+    NEW.recorded_during := tstzrange(approval_time,NULL,'[)');
+    UPDATE m06_governance.baseline b
+      SET status='superseded', recorded_during=tstzrange(lower(b.recorded_during),approval_time,'[)')
+      WHERE b.tenant_id=NEW.tenant_id AND b.portfolio_id=NEW.portfolio_id
+        AND b.baseline_type=NEW.baseline_type AND b.status='approved'
+        AND b.valid_during=NEW.valid_during AND b.id<>NEW.id;
+  END IF;
+  RETURN NEW;
+END $$;
 
