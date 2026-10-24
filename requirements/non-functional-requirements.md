@@ -63,7 +63,7 @@ Each **Evidence** entry is the minimum verification method. Numeric values label
 | SPM ID | Requirement and target | Applies | Evidence | Source / owner |
 | --- | --- | --- | --- | --- |
 | SPM-NFR-015 | Browser journeys shall meet WCAG 2.2 AA; public-facing deployments shall publish an accessibility statement. | All browser UI; statement conditional on public service | Automated checks, manual assistive-technology audit and statement review. | DEFRA NFR-ACC-01 · Product + Front end |
-| SPM-NFR-016 | A public-facing UK government deployment shall use the applicable approved design-system components and patterns. | Conditional: public-facing UK government service | Design and code review against the chosen design system. | DEFRA NFR-ACC-02 · Product + Front end |
+| SPM-NFR-016 | All SPM browser UI shall follow the GOV.UK Design System styling and applicable components and patterns. Deployments outside `gov.uk` shall use the generic header and shall not use the GOV.UK logotype or GDS Transport font. | All browser UI | Design and code review against the GOV.UK Design System, plus accessibility and usability testing. | Product decision 2026-10-24; DEFRA NFR-ACC-02 · Product + Front end |
 | SPM-NFR-017 | Core browser journeys shall be completable without client-side JavaScript where this is an approved channel requirement; otherwise an accessible fallback shall be specified and tested. | Conditional: channel decision | JavaScript-disabled journey test or approved fallback evidence. | DEFRA NFR-ACC-03 · Product + Front end |
 | SPM-NFR-018 | The UI shall work with the approved browser, device and assistive-technology support matrix. | All UI deployments | Cross-browser and assistive-technology test results. | DEFRA NFR-ACC-04 · Product + Front end |
 
@@ -129,7 +129,7 @@ These extend the Defra categories to cover the approved SPM domain model and ope
 ## Open product decisions
 
 - Select a default *candidate* service profile for the first deployable product environment, then obtain tenant-specific acceptance. D10 requires records, residency and recovery settings to be approved before go-live.
-- Decide which SPM channels are public-facing. Defra's GOV.UK design-system and JavaScript rules need that context; they are not automatically applicable to an internal enterprise tool.
+- Decide which SPM channels are public-facing. This determines the accessibility statement and JavaScript fallback obligations; the GOV.UK Design System styling decision applies to all SPM browser UI.
 - Confirm how tenant-by-tenant RTO/RPO, residency and retention are enforced when infrastructure is shared.
 - Map these NFRs to implementation backlog items and evidence owners. Existing SQL migrations alone do not demonstrate that a service-level target is met.
 
