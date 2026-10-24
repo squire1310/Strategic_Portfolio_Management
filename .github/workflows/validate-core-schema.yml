@@ -1,0 +1,46 @@
+name: Validate core schema
+
+on:
+  push:
+    paths:
+      - 'reconciled-core/**'
+      - '.github/workflows/validate-core-schema.yml'
+  pull_request:
+    paths:
+      - 'reconciled-core/**'
+      - '.github/workflows/validate-core-schema.yml'
+
+jobs:
+  postgres-16:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: spm_schema_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d spm_schema_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: spm_schema_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply migrations
+        run: |
+          for file in reconciled-core/migrations/V*.sql; do
+            psql -v ON_ERROR_STOP=1 -1 -f "$file"
+          done
+      - name: Run SQL smoke test
+        run: psql -v ON_ERROR_STOP=1 -f reconciled-core/tests/smoke.sql
+
