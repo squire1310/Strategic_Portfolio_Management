@@ -3,13 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
+    "build:css": "sass --pkg-importer=node src/styles.scss public/govuk.css --no-source-map --quiet-deps",
+    "prestart": "pnpm build:css",
     "start": "node src/server.js",
+    "pretest": "pnpm build:css",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "govuk-frontend": "6.6.0",
     "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "sass": "1.79.0"
   }
 }
 
