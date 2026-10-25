@@ -30,9 +30,15 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   const condition=await admin.query(`INSERT INTO m05_investment.decision_condition
     (tenant_id,decision_id,condition_type,description)
     VALUES($1,$2,'precedent','Provide statutory clearance') RETURNING id`,[tenant,decision.rows[0].id]);
+  const subsequent=await admin.query(`INSERT INTO m05_investment.decision_condition
+    (tenant_id,decision_id,condition_type,description,due_on)
+    VALUES($1,$2,'subsequent','Submit ongoing monitoring report',CURRENT_DATE-1) RETURNING id`,[tenant,decision.rows[0].id]);
   await admin.query('COMMIT');
   let result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,1);
+  assert.equal(result.outstandingSubsequents,1);
+  assert.equal(result.overdueSubsequents,1);
+  assert.equal(result.conditions.find(c=>c.id===subsequent.rows[0].id).overdue,true);
   assert.equal(result.commitmentReady,false);
   const payload={conditionId:condition.rows[0].id,result:'satisfied',evidenceReference:'synthetic:independent-proof'};
   await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
@@ -64,6 +70,17 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.equal(result.precedentClearance,true);
   assert.equal(result.commitmentReady,false);
   assert.equal(result.effectuationPerformed,false);
+  const later={conditionId:subsequent.rows[0].id,result:'satisfied',evidenceReference:'synthetic:monitoring-proof'};
+  await verifierStore.verifyDecisionCondition(later,{tenantId:tenant,actorId:verifier});
+  result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
+  assert.equal(result.outstandingSubsequents,0);
+  assert.equal(result.overdueSubsequents,0);
+  await verifierStore.verifyDecisionCondition({...later,result:'not_satisfied',evidenceReference:'synthetic:monitoring-regression'},
+    {tenantId:tenant,actorId:verifier});
+  result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
+  assert.equal(result.outstandingSubsequents,1);
+  assert.equal(result.overdueSubsequents,1);
+  assert.equal(result.commitmentReady,false);
   await admin.query(`UPDATE m05_investment.condition_verifier_mandate SET revoked_at=now()
     WHERE tenant_id=$1 AND id=$2`,[tenant,mandate.rows[0].id]);
   await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);

@@ -453,7 +453,9 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const decision=await one(client,`SELECT decision_type FROM m05_investment.investment_decision
         WHERE tenant_id=platform.current_tenant() AND id=$1`,[decisionId]);
       const conditions=(await client.query(`SELECT c.id,c.condition_type,c.description,c.due_on,
-        v.result AS verification_result,v.verified_at FROM m05_investment.decision_condition c
+        v.result AS verification_result,v.verified_at,
+        (c.due_on<CURRENT_DATE AND v.result IS DISTINCT FROM 'satisfied') AS overdue
+        FROM m05_investment.decision_condition c
         LEFT JOIN LATERAL (SELECT result,verified_at FROM m05_investment.condition_verification
           WHERE tenant_id=c.tenant_id AND condition_id=c.id ORDER BY verified_at DESC,id DESC LIMIT 1) v ON true
         WHERE c.tenant_id=platform.current_tenant() AND c.decision_id=$1 ORDER BY c.id`,[decisionId])).rows;
