@@ -19,9 +19,10 @@ test('B008 independent assessment and criterion coverage', {skip:!process.env.SP
   assert.equal(review.proposal.status,'triage');
   const model=await db.query(`INSERT INTO m04_selection.scoring_model
     (tenant_id,code,name,owner_id,status,effective_during)
-    VALUES($1,$2,'Test model',$3,'active',daterange('2026-01-01','2030-01-01','[)')) RETURNING id`,
+    VALUES($1,$2,'Test model',$3,'draft',daterange('2026-01-01','2030-01-01','[)')) RETURNING id`,
     [tenantId,'model_'+suffix,assessorId]);
   const modelId=model.rows[0].id;
+  await db.query("UPDATE m04_selection.scoring_model SET status='active' WHERE tenant_id=$1 AND id=$2",[tenantId,modelId]);
   const criterion=await db.query(`INSERT INTO m04_selection.criterion
     (tenant_id,scoring_model_id,code,name,weight,maximum_score,direction)
     VALUES($1,$2,'impact','Impact',1,10,'higher') RETURNING id`,[tenantId,modelId]);
