@@ -235,3 +235,7 @@ A single person may appear in several sessions but must act under distinct scope
 ## Entra ID and prototype access design (25 October 2026)
 
 The organisation uses **Microsoft Entra ID and security groups** for application access. The [Entra identity and prototype stub design v1.0](entra-identity-access-prototype-design-v1.0.md) defines a production OIDC integration, group/app-role mapping to SPM permissions, independent scoped business roles and approval authorities, and an isolated synthetic identity provider for the prototype. No internal Entra access is assumed; no code, migration or live IAM configuration has been changed.
+
+## Business object lifecycle design (25 October 2026)
+
+[Business Object Lifecycle and State Transition Model v1.0](business-object-lifecycle-transition-model-v1.0.md) proposes M01–M06 state/command matrices, mandatory Entra-aware access and decision-authority guards, cross-object choreography, exceptions, 22 test cases, and 12 reconciliation issues. It observes approved D01–D10 and canonical model v1.1; proposed state refinements are **not ratified** and no implementation/schema changes follow automatically.
