@@ -435,7 +435,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const outstandingPrecedents=unmet('precedent');
       return {decisionId,decisionType:decision.decision_type,conditions,outstandingPrecedents,
         outstandingSubsequents:unmet('subsequent'),precedentClearance:outstandingPrecedents===0,
-        commitmentReady:decision.decision_type==='approve'&&outstandingPrecedents===0,
+        commitmentReady:false,
         effectuationPerformed:false};
     },{context});
   }
