@@ -49,3 +49,26 @@ test('B006 independent review returns proposal and permits immutable revision 2'
   assert.notEqual(second.revision.id,first.revision.id);
  } finally {await Promise.all([store.close(),reviewer.close()]);await owner.end();}
 });
+
+test('B007 promotes accepted demand exactly once to candidate investment', {skip:!process.env.SPM_TEST_DATABASE_URL},async()=>{
+ const owner=new pg.Client(); await owner.connect();
+ const reviewerId=randomUUID(),ctx={tenantId,actorId};
+ const store=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId,actorId});
+ const reviewer=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId,actorId:reviewerId});
+ try {
+  await owner.query('INSERT INTO platform.principal(principal_id,subject,display_name) VALUES($1,$2,$3)',[reviewerId,'test:promote-'+reviewerId,'Intake reviewer']);
+  await owner.query("INSERT INTO platform.tenant_member(tenant_id,principal_id,member_role) VALUES($1,$2,'contributor')",[tenantId,reviewerId]);
+  const suffix=randomUUID().slice(0,8);
+  const category=await store.command('category',{code:'category_'+suffix,label:'Test category'});
+  const draft=await store.proposal('create',{code:'promotion_'+suffix,title:'Candidate source'},ctx);
+  await assert.rejects(store.proposal('promote',{id:draft.id,expectedVersion:1,code:'inv_'+suffix,categoryId:category.id},ctx),e=>e instanceof AppError&&e.status===409);
+  await store.proposal('submit',{id:draft.id,expectedVersion:1,summary:'Case',options:[],assumptions:[]},ctx);
+  await reviewer.proposal('review',{id:draft.id,expectedVersion:2,outcome:'accept_for_assessment',feedback:'Proceed'}, {tenantId,actorId:reviewerId});
+  const accepted=await reviewer.proposal('accept',{id:draft.id,expectedVersion:3}, {tenantId,actorId:reviewerId});
+  assert.equal(accepted.proposal.status,'accepted');
+  const promoted=await store.proposal('promote',{id:draft.id,expectedVersion:4,code:'inv_'+suffix,categoryId:category.id},ctx);
+  assert.equal(promoted.investment.lifecycle,'candidate');
+  assert.equal(promoted.investment.origin_demand_id,draft.id);
+  await assert.rejects(store.proposal('promote',{id:draft.id,expectedVersion:4,code:'inv_other_'+suffix,categoryId:category.id},ctx),e=>e instanceof AppError&&e.status===409);
+ } finally { await Promise.all([store.close(),reviewer.close()]); await owner.end(); }
+});
