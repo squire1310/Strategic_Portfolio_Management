@@ -189,3 +189,7 @@ The [prioritised implementation backlog v1.0](../requirements/implementation-bac
 ## Detailed proposed next increment
 
 [Build Increment 2 — M0/M1 Identity and Authorisation Foundation](../requirements/build-increment-2-identity-foundation.md) scopes PostgreSQL V001–V008 verification and an Entra-compatible identity provider abstraction with prototype security groups and consistent server-side authorisation. The scope and implementation are not yet separately authorised.
+
+## ServiceNow production access fulfilment (25 October 2026)
+
+Production access requests and their administration will use the organisation's **ServiceNow catalogue**. Entra ID remains the authentication and security-group source, while SPM enforces effective permissions and its own scoped assignments. Do **not** implement an SPM production access-request portal. Confirm with IAM whether ServiceNow fulfilment updates only Entra groups, also calls an SPM scoped-assignment provisioning API, or follows a controlled manual process. Preserve synthetic fixture provisioning for prototype tests. See [identity architecture and ServiceNow division of responsibilities](../docs/entra-identity-access-prototype-design-v1.0.md). A catalogue approval is **not** delegated investment approval authority.
