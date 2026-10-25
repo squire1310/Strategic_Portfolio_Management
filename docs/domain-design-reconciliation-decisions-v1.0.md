@@ -1,7 +1,7 @@
 # Domain Design Reconciliation and Decision Record — v1.0
 
 **Prepared:** 25 October 2026  
-**Status:** **Recommended decisions for product-owner / architecture ratification. Not yet approved.**  
+**Status:** **Approved by product owner on 25 October 2026 as the target design baseline (C01–C08).** Tenant-specific authority instruments, Entra configuration and implementation details remain subject to validation.  
 **Scope:** Reconcile C01–C08 from the [lifecycle gap analysis](lifecycle-canonical-data-model-gap-analysis-v1.0.md) without silently changing approved D01–D10, canonical domain model v1.1, or US-001–US-004 increment scope.
 
 ## 1. Governing baselines and precedence
@@ -24,7 +24,7 @@
 | C07 | How should v1.1 strategic risk be migrated? | Approve an explicit risk appetite/rating contract, then forward migration and tests for v1.1 entities | Deferred pending policy ratification | G11/G12 |
 | C08 | Should UX states become canonical states? | No: derive composite status from canonical business records, tasks, decisions, conditions and integrations | Recommended no-schema-change rule | G22 |
 
-These eight recommended dispositions are coherent as a single target design but remain subject to acceptance; do not update D01–D10 status.
+**Ratification:** The product owner explicitly accepted all eight dispositions C01–C08 on 25 October 2026. This ratifies target design choices, not deployment readiness, legal delegation or the precise physical schema. Existing D01–D10 remain separately approved and unchanged.
 
 ## 3. Detailed decision records
 
@@ -123,7 +123,7 @@ C07 informs assurance/governance policy but does not require all risk entities t
 | C07 | M06 | AppetiteVersion, InvestmentRisk, RiskAssessment, RiskDisposition | Yes, known model-to-schema gap | RLS, immutable final assessment and scope |
 | C08 | Read models/platform | Derived journey status projection | Not necessarily | No duplicate truth |
 
-**All migration statements are provisional.** Confirm actual existing table/field coverage before drafting forward migrations.
+**All migration statements remain provisional.** Approval of the target decisions does not approve any particular SQL migration. Confirm actual existing table/field coverage before drafting forward migrations.
 
 ## 6. Implementation work packages (planning only)
 
@@ -141,7 +141,7 @@ C07 informs assurance/governance policy but does not require all risk entities t
 
 ## 7. Ratification checklist
 
-For each C01–C08, record: outcome (accept/amend/reject/defer), accountable product decision maker, date, rationale, affected module contract, tenant policy decisions, validation requirements, implementation owner and any required migration/ADR follow-up. Existing D01–D10 remain approved; these eight items have **recommended** status unless explicitly accepted.
+**Decision outcome:** ACCEPT C01, C02, C03, C04, C05, C06, C07 and C08 as target architectural and domain design positions. **Decision maker:** product owner. **Decision date:** 25 October 2026. Rationale and module implications are documented in sections 2–6. Follow-up: assign delivery owners and confirm detailed technical contracts, tenant policies, migration design and acceptance tests. D01–D10 remain unchanged.
 
 ### Matters requiring external input
 
@@ -152,4 +152,4 @@ For each C01–C08, record: outcome (accept/amend/reject/defer), accountable pro
 
 ## 8. Next action
 
-Obtain explicit ratification on C01–C08 and use the accepted dispositions to produce a **versioned implementation change backlog and technical acceptance tests**. Design the prototype identity adapter early, but do not write schemas or change application services until agreed backlog and module ownership checks are complete.
+Use the accepted C01–C08 dispositions to produce a **versioned implementation change backlog and technical acceptance tests**. Design the prototype identity adapter early, but do not write schemas or change application services until agreed backlog and module ownership checks are complete.
