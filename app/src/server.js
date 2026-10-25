@@ -84,6 +84,13 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         strategyScope = assignments.strategyIds;
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
+      if (req.method === 'POST' && path.startsWith('/api/recommendations/')) {
+        if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped recommendation permission not yet implemented');
+        if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Recommendation permission required');
+        const action=path.slice('/api/recommendations/'.length);
+        if (!['create-scenario','recommend'].includes(action)) throw new AppError(404,'Unknown recommendation action');
+        return respond(res,201,await store.recommendation(action,await jsonBody(req),session.context));
+      }
       if (req.method === 'GET' && /^\/api\/assessments\/[0-9a-f-]{36}\/results$/.test(path)) {
         if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped assessment permissions not yet implemented');
         return respond(res,200,await store.assessmentResults(session.context,path.split('/')[3]));
