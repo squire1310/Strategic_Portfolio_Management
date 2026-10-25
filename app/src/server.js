@@ -86,6 +86,7 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       if (req.method === 'POST' && path.startsWith('/api/commands/')) {
         const name = path.slice('/api/commands/'.length);
         if (!/^[a-z-]+$/.test(name)) throw new AppError(404, 'Unknown command');
+        if (session.user.portfolioIds !== null && ['portfolio', 'portfolio-update', 'portfolio-parent', 'portfolio-retire', 'investment', 'investment-update', 'investment-retire', 'membership', 'membership-update', 'membership-remove', 'alignment', 'alignment-remove'].includes(name)) throw new AppError(403, 'Scoped writes require object-level command verification');
         if (!session.user.allowedCommands.includes(name)) throw new AppError(403, 'Your role cannot change this record');
         return respond(res, 201, await store.command(name, await jsonBody(req), session.context));
       }
