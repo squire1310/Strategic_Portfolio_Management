@@ -43,6 +43,26 @@ test('B008 independent assessment and criterion coverage', {skip:!process.env.SP
   assert.equal(recommendation.recommendation.recommendation,'defer');
   assert.equal(recommendation.recommendation.demand_id,draft.id);
   await assert.rejects(assessor.recommendation('recommend',{scenarioId:scenario.id,assessmentId:assessment.id,outcome:'invalid',rationale:'Bad'},ctx),e=>e instanceof AppError&&e.status===409);
+  const exceptionScenario=await assessor.recommendation('create-scenario',{
+    code:'exception_'+suffix,name:'Exception scenario',scoringModelId:modelId,
+    constraints:{minimumSelectScore:75}},ctx);
+  await assert.rejects(assessor.recommendation('recommend',{
+    scenarioId:exceptionScenario.id,assessmentId:assessment.id,outcome:'select',
+    rationale:'Urgent exceptional selection',overrideReason:'Critical statutory delivery deadline'},ctx),
+    e=>e instanceof AppError&&e.status===403);
+  const request=await assessor.scenarioOverride('request',{
+    scenarioId:exceptionScenario.id,assessmentId:assessment.id,
+    justification:'Critical statutory delivery deadline'},ctx);
+  await assert.rejects(assessor.scenarioOverride('decide',{
+    id:request.id,decision:'approved',reason:'Independent governance review passed'},ctx),
+    e=>e instanceof AppError&&e.status===403);
+  const approved=await owner.scenarioOverride('decide',{
+    id:request.id,decision:'approved',reason:'Independent governance review passed'},ownCtx);
+  assert.equal(approved.decision,'approved');
+  const selected=await assessor.recommendation('recommend',{
+    scenarioId:exceptionScenario.id,assessmentId:assessment.id,outcome:'select',
+    rationale:'Urgent exceptional selection',overrideReason:'Critical statutory delivery deadline'},ctx);
+  assert.equal(selected.recommendation.recommendation,'select');
   await assert.rejects(assessor.assessment('score',{id:assessment.id,expectedVersion:3,criterionId:criterion.rows[0].id,score:8,evidence:'Late'},ctx),e=>e instanceof AppError&&e.status===409);
  }finally{await Promise.all([owner.close(),assessor.close()]);await db.end();}
 });
