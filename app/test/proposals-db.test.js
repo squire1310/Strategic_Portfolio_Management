@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
+import pg from 'pg';
 import {createStore,AppError} from '../src/domain.js';
 const tenantId='00000000-0000-4000-8000-000000000001',actorId='00000000-0000-4000-8000-000000000101';
 test('B006 draft submission preserves immutable case revision', {skip:!process.env.SPM_TEST_DATABASE_URL},async()=>{
@@ -20,4 +21,25 @@ test('B006 draft submission preserves immutable case revision', {skip:!process.e
   await assert.rejects(store.proposal('edit',{id:created.id,expectedVersion:3,title:'Changed'},ctx),
     e=>e instanceof AppError&&e.status===409);
  } finally {await store.close();}
+});
+
+test('B006 independent review returns proposal and permits immutable revision 2', {skip:!process.env.SPM_TEST_DATABASE_URL}, async()=>{
+ const owner=new pg.Client(); await owner.connect();
+ const reviewerId=randomUUID(); const ctx={tenantId,actorId};
+ const store=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId,actorId});
+ const reviewer=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId,actorId:reviewerId});
+ try {
+  await owner.query('INSERT INTO platform.principal(principal_id,subject,display_name) VALUES($1,$2,$3)',[reviewerId,'test:review-'+reviewerId,'Independent reviewer']);
+  await owner.query("INSERT INTO platform.tenant_member(tenant_id,principal_id,member_role) VALUES($1,$2,'contributor')",[tenantId,reviewerId]);
+  const proposal=await store.proposal('create',{code:'review_'+randomUUID().slice(0,8),title:'Review case'},ctx);
+  const first=await store.proposal('submit',{id:proposal.id,expectedVersion:1,summary:'First',options:[],assumptions:[]},ctx);
+  await assert.rejects(store.proposal('review',{id:proposal.id,expectedVersion:2,outcome:'return_for_correction',feedback:'Revise'},ctx),
+    e=>e instanceof AppError&&e.status===403);
+  const returned=await reviewer.proposal('review',{id:proposal.id,expectedVersion:2,outcome:'return_for_correction',feedback:'Clarify benefits'}, {tenantId,actorId:reviewerId});
+  assert.equal(returned.proposal.status,'draft');
+  assert.equal(returned.review.case_revision_id,first.revision.id);
+  const second=await store.proposal('submit',{id:proposal.id,expectedVersion:3,summary:'Revised',options:[],assumptions:[]},ctx);
+  assert.equal(second.revision.revision_no,2);
+  assert.notEqual(second.revision.id,first.revision.id);
+ } finally {await Promise.all([store.close(),reviewer.close()]);await owner.end();}
 });
