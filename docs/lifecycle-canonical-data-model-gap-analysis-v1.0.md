@@ -95,4 +95,8 @@ Keep the previously agreed Increment 1 (US-001–US-004) build scope as-is until
 
 ## Domain design reconciliation (25 October 2026)
 
-The [Domain Design Reconciliation and Decision Record v1.0](domain-design-reconciliation-decisions-v1.0.md) proposes dispositions for C01–C08: pre-investment formal decisions, condition ownership, work-item handoffs, Entra entitlement mapping, committee evidence, cross-module effectuation, v1.1 strategic risk and derived UX states. **These recommendations await explicit ratification**; approved D01–D10 and existing implementation scope are unchanged.
+The [Domain Design Reconciliation and Decision Record v1.0](domain-design-reconciliation-decisions-v1.0.md) proposes dispositions for C01–C08: pre-investment formal decisions, condition ownership, work-item handoffs, Entra entitlement mapping, committee evidence, cross-module effectuation, v1.1 strategic risk and derived UX states. **C01–C08 were approved as target design decisions on 25 October 2026**; approved D01–D10 and existing implementation scope remain unchanged.
+
+## C01–C08 approval record (25 October 2026)
+
+The product owner explicitly accepted all eight design reconciliation decisions. See the [ratified decision record](domain-design-reconciliation-decisions-v1.0.md). This approval establishes design direction, not tenant-specific legal delegation, implementation readiness or approval of database migrations.
