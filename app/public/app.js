@@ -335,8 +335,9 @@ async function loadProposals() {
    if(item.latest_feedback){const p=document.createElement('p');p.className='govuk-body';p.textContent='Reviewer feedback: '+item.latest_feedback;box.append(p);}
    if(endpoint==='mine'&&item.status==='draft'){
     const summary=document.createElement('textarea');summary.className='govuk-textarea';summary.placeholder='Business-case summary';summary.setAttribute('aria-label','Business-case summary for '+item.title);box.append(summary);
+    const reviewer=document.createElement('input');reviewer.className='govuk-input';reviewer.placeholder='Reviewer principal UUID (optional)';reviewer.setAttribute('aria-label','Reviewer principal ID for '+item.title);box.append(reviewer);
     const button=document.createElement('button');button.className='govuk-button';button.textContent='Submit revision';button.addEventListener('click',async()=>{try{
-      await proposalRequest('submit',{id:item.id,expectedVersion:item.row_version,summary:summary.value,options:[],assumptions:[]});
+      await proposalRequest('submit',{id:item.id,expectedVersion:item.row_version,summary:summary.value,options:[],assumptions:[],...(reviewer.value.trim()?{reviewerId:reviewer.value.trim()}:{})});
       show('Proposal submitted.');await loadProposals();
     }catch(e){show(e.message,'error');}});box.append(button);
    }
