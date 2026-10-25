@@ -1,4 +1,5 @@
 import pg from 'pg';
+import {validateScenarioConstraints,evaluateScenarioConstraint} from './scenario-constraints.js';
 import { randomUUID } from 'node:crypto';
 
 const { Pool } = pg;
@@ -414,10 +415,12 @@ export function createStore({ connectionString, tenantId, actorId }) {
         const modelId=uuid(body.scoringModelId,'scoringModelId');
         await one(client,`SELECT id FROM m04_selection.scoring_model WHERE tenant_id=platform.current_tenant()
           AND id=$1 AND status='active'`,[modelId],'Active scoring model required');
+        let constraints;
+        try {constraints=validateScenarioConstraints(body.constraints || {});} catch(e){throw new AppError(400,e.message);}
         return one(client,`INSERT INTO m04_selection.scenario
-          (tenant_id,code,name,scoring_model_id,owner_id)
-          VALUES(platform.current_tenant(),$1,$2,$3,platform.current_actor()) RETURNING *`,
-          [code(body.code),requiredText(body.name,'name',200),modelId]);
+          (tenant_id,code,name,scoring_model_id,owner_id,constraint_set)
+          VALUES(platform.current_tenant(),$1,$2,$3,platform.current_actor(),$4::jsonb) RETURNING *`,
+          [code(body.code),requiredText(body.name,'name',200),modelId,JSON.stringify(constraints)]);
       }
       if(action==='recommend') {
         const scenarioId=uuid(body.scenarioId,'scenarioId'), assessmentId=uuid(body.assessmentId,'assessmentId');
@@ -436,6 +439,10 @@ export function createStore({ connectionString, tenantId, actorId }) {
           JOIN m04_selection.criterion c ON c.tenant_id=cs.tenant_id AND c.id=cs.criterion_id
           WHERE cs.tenant_id=platform.current_tenant() AND cs.assessment_id=$1`,[assessmentId]);
         if(!aggregate.rows[0].scored) throw new AppError(409,'Assessment has no scores');
+        let constraintEvaluation;
+        try { constraintEvaluation=evaluateScenarioConstraint(scenario.constraint_set,Number(aggregate.rows[0].total),outcome,body.overrideReason); }
+        catch(e){throw new AppError(409,e.message);}
+        const rationale=requiredText(body.rationale,'rationale',2000)+(constraintEvaluation.exception ? '\nOverride: '+constraintEvaluation.reason : '');
         const inclusion={select:'selected',defer:'considered',reject:'excluded'}[outcome];
         const candidate=await one(client,`INSERT INTO m04_selection.scenario_candidate
           (tenant_id,scenario_id,demand_id,assessment_id,aggregate_score,inclusion)
@@ -449,7 +456,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
         const result=await one(client,`INSERT INTO m04_selection.selection_recommendation
           (tenant_id,scenario_id,demand_id,recommendation,rationale,proposed_by)
           VALUES(platform.current_tenant(),$1,$2,$3,$4,platform.current_actor()) RETURNING *`,
-          [scenarioId,assessment.demand_id,outcome,requiredText(body.rationale,'rationale',2000)]);
+          [scenarioId,assessment.demand_id,outcome,rationale]);
         return {candidate,recommendation:result};
       }
       throw new AppError(404,'Unknown recommendation action');
