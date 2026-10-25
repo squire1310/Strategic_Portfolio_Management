@@ -436,7 +436,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const id=uuid(body.id,'id');
       const current=await one(client,`SELECT * FROM m03_demand.demand
         WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
-      if(action !== 'review' && current.submitted_by !== context.actorId) throw new AppError(403,'Proposal owner required');
+      if(!['review','accept'].includes(action) && current.submitted_by !== context.actorId) throw new AppError(403,'Proposal owner required');
       if(current.row_version !== version(body.expectedVersion)) throw new AppError(409,'Stale proposal');
       if(action === 'edit') {
         if(current.status !== 'draft') throw new AppError(409,'Only draft proposals can be edited');
