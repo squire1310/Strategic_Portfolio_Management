@@ -407,6 +407,26 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
+  async function assessmentResults(context, id) {
+    uuid(id,'id');
+    return transaction(async client => {
+      const assessment=await one(client,`SELECT * FROM m04_selection.assessment
+        WHERE tenant_id=platform.current_tenant() AND id=$1`,[id]);
+      if(assessment.assessor_id!==context.actorId) throw new AppError(403,'Assessment owner required');
+      const scores=(await client.query(`SELECT c.id AS criterion_id,c.name,c.weight,c.maximum_score,
+        cs.score,cs.evidence,
+        CASE WHEN cs.id IS NULL THEN NULL ELSE
+          round((cs.score/c.maximum_score*c.weight*100)::numeric,4) END AS weighted_points
+        FROM m04_selection.criterion c LEFT JOIN m04_selection.criterion_score cs
+          ON cs.tenant_id=c.tenant_id AND cs.criterion_id=c.id AND cs.assessment_id=$2
+        WHERE c.tenant_id=platform.current_tenant() AND c.scoring_model_id=$1 ORDER BY c.code`,
+        [assessment.scoring_model_id,id])).rows;
+      const total=scores.every(r=>r.score!==null)
+        ? scores.reduce((sum,r)=>sum+Number(r.weighted_points),0) : null;
+      return {assessment,criteria:scores,weightedTotal:total===null?null:Number(total.toFixed(4)),
+        totalWeight:scores.reduce((sum,r)=>sum+Number(r.weight),0),complete:scores.length>0&&scores.every(r=>r.score!==null)};
+    },{context});
+  }
   async function assessment(action, body, context) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
     return transaction(async client => {
@@ -639,7 +659,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, close: () => pool.end() };
 }
 
 export function httpError(error) {
