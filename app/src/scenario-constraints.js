@@ -17,3 +17,24 @@ export function evaluateScenarioConstraint(constraints, score, outcome, override
     throw new Error('Selecting below threshold requires an override reason of at least 20 characters');
   return {exception:true,reason:overrideReason.trim()};
 }
+
+export function rankScenarioCandidates(candidates, constraints = {}) {
+  const policy = validateScenarioConstraints(constraints);
+  if (!Array.isArray(candidates)) throw new Error('Candidate collection required');
+  const seen = new Set();
+  const ordered = candidates.map(candidate => {
+    if (!candidate || typeof candidate.id !== 'string' || !candidate.id ||
+        typeof candidate.score !== 'number' || !Number.isFinite(candidate.score) ||
+        candidate.score < 0 || candidate.score > 100 || seen.has(candidate.id))
+      throw new Error('Invalid or duplicate scenario candidate');
+    seen.add(candidate.id);
+    return { id: candidate.id, score: candidate.score };
+  }).sort((a,b) => b.score-a.score || a.id.localeCompare(b.id));
+  let priorScore, rank = 0;
+  return ordered.map((candidate,index) => {
+    if (candidate.score !== priorScore) rank = index + 1;
+    priorScore = candidate.score;
+    return { ...candidate, rank, belowMinimum:
+      policy.minimumSelectScore !== undefined && candidate.score < policy.minimumSelectScore };
+  });
+}
