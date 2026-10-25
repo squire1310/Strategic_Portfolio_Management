@@ -169,3 +169,7 @@ The organisation uses **Microsoft Entra ID and security groups** for application
 ## Business object lifecycle design (25 October 2026)
 
 [Business Object Lifecycle and State Transition Model v1.0](business-object-lifecycle-transition-model-v1.0.md) proposes M01–M06 state/command matrices, mandatory Entra-aware access and decision-authority guards, cross-object choreography, exceptions, 22 test cases, and 12 reconciliation issues. It observes approved D01–D10 and canonical model v1.1; proposed state refinements are **not ratified** and no implementation/schema changes follow automatically.
+
+## Lifecycle-to-canonical-model gap assessment (25 October 2026)
+
+[Gap Analysis v1.0](lifecycle-canonical-data-model-gap-analysis-v1.0.md) compares the proposed lifecycle transitions with canonical model v1.1 and reconciled-core migrations V001–V008. It identifies 22 severity-ranked gaps, existing V006 safeguards, the unverified execution status of V008 and the required architecture/product decisions before any migrations. This is an assessment only; no implementation work is authorised.
