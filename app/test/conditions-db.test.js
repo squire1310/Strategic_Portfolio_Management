@@ -6,6 +6,8 @@ import {createStore,AppError} from '../src/domain.js';
 test('B012 outstanding precedent blocks readiness and evidence does not effectuate', {skip:!process.env.SPM_TEST_DATABASE_URL},async()=>{
  const tenant='00000000-0000-4000-8000-000000000001';
  const actor='00000000-0000-4000-8000-000000000101';
+ const otherTenant='00000000-0000-4000-8000-000000000002';
+ const otherActor='00000000-0000-4000-8000-000000000102';
  const approver=randomUUID();
  const verifier=randomUUID();
  const admin=new pg.Client();await admin.connect();
@@ -13,6 +15,7 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
  await admin.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true),set_config('app.request_id',$3,true)",[tenant,actor,randomUUID()]);
  const store=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId:tenant,actorId:actor});
  const verifierStore=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId:tenant,actorId:verifier});
+ const otherStore=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId:otherTenant,actorId:otherActor});
  try {
   const suffix=randomUUID().slice(0,8);
   const category=await store.command('category',{code:'condcat_'+suffix,label:'Condition category'});
@@ -41,6 +44,10 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.equal(result.conditions.find(c=>c.id===subsequent.rows[0].id).overdue,true);
   assert.equal(result.commitmentReady,false);
   const payload={conditionId:condition.rows[0].id,result:'satisfied',evidenceReference:'synthetic:independent-proof'};
+  await assert.rejects(otherStore.decisionConditionReadiness({tenantId:otherTenant,actorId:otherActor},decision.rows[0].id),
+    e=>e instanceof AppError&&e.status===404);
+  await assert.rejects(otherStore.verifyDecisionCondition(payload,{tenantId:otherTenant,actorId:otherActor}),
+    e=>e instanceof AppError&&e.status===404);
   await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
   const direct=async (actingAs,verifiedBy,verifiedAt=null,mandateId=null)=>{
     const client=new pg.Client({connectionString:process.env.SPM_TEST_DATABASE_URL});
@@ -62,6 +69,8 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   const evidence=await verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier});
   assert.equal(evidence.result,'satisfied');
   assert.equal(evidence.mandate_id,mandate.rows[0].id);
+  await assert.rejects(admin.query(`UPDATE m05_investment.condition_verification SET result='not_satisfied'
+    WHERE tenant_id=$1 AND id=$2`,[tenant,evidence.id]),/Decision condition evidence is immutable/);
   const forgedTime=await direct(verifier,verifier,'9999-01-01T00:00:00Z',randomUUID());
   assert.ok(forgedTime.rows[0].verified_at.getTime()<=Date.now());
   assert.ok(forgedTime.rows[0].verified_at.getTime()>=Date.now()-60_000);
@@ -89,9 +98,17 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   await assert.rejects(direct(verifier,verifier),/Effective verifier mandate required/);
   await admin.query(`INSERT INTO m05_investment.condition_verifier_mandate
     (tenant_id,principal_id,granted_by,effective_during,reason)
+    VALUES($1,$2,$3,tstzrange(now()+interval '1 day',now()+interval '2 days','[)'),$4),
+          ($1,$2,$3,tstzrange(now()-interval '2 days',now()-interval '1 day','[)'),$5)`,
+    [tenant,verifier,approver,'Future mandate must not authorise current verification',
+      'Expired mandate must not authorise current verification']);
+  await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(direct(verifier,verifier),/Effective verifier mandate required/);
+  await admin.query(`INSERT INTO m05_investment.condition_verifier_mandate
+    (tenant_id,principal_id,granted_by,effective_during,reason)
     VALUES($1,$2,$3,tstzrange(now()-interval '1 hour',now()+interval '1 day','[)'),$4)`,
     [tenant,actor,approver,'Test mandate must not permit investment owner self verification']);
   await assert.rejects(store.verifyDecisionCondition(payload,{tenantId:tenant,actorId:actor}),e=>e instanceof AppError&&e.status===403);
   await assert.rejects(direct(actor,actor),/Independent verifier required/);
- } finally {await store.close();await verifierStore.close();await admin.end();}
+ } finally {await store.close();await verifierStore.close();await otherStore.close();await admin.end();}
 });
