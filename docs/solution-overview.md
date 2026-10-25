@@ -185,3 +185,7 @@ The product owner explicitly accepted all eight design reconciliation decisions.
 ## Proposed implementation backlog (25 October 2026)
 
 The [prioritised implementation backlog v1.0](../requirements/implementation-backlog-v1.0.md) sequences 22 traced work items across secure prototype identity, proposal/assessment, formal governance/commitment and expansion. It preserves Increment 1 US-001–US-004 and requires separate work-item/migration approval. No code or schema changes follow from the backlog alone.
+
+## Detailed proposed next increment
+
+[Build Increment 2 — M0/M1 Identity and Authorisation Foundation](../requirements/build-increment-2-identity-foundation.md) scopes PostgreSQL V001–V008 verification and an Entra-compatible identity provider abstraction with prototype security groups and consistent server-side authorisation. The scope and implementation are not yet separately authorised.
