@@ -102,3 +102,7 @@ Migration [V013](../reconciled-core/migrations/V013__proposal_work_item_handoffs
 ### B007 candidate investment promotion
 
 Following independent M03 intake review, `POST /api/proposals/accept` moves a triaged demand to `accepted`; `POST /api/proposals/promote` creates one M05 candidate investment linked through `origin_demand_id`, using a selected investment category. PostgreSQL's tenant-scoped unique origin-demand constraint and service checks prevent duplicate promotion. The two steps distinguish intake acceptance and candidate creation from **formal M05 investment approval**, which remains a separate governed process. These commands currently have no UI and the prototype's scoped-access mode remains blocked until M03-specific permissions are developed.
+
+### B008 initial independent assessment slice
+
+`POST /api/assessments/create`, `/score` and `/complete` use canonical M04 scoring models, criteria, assessments and criterion scores. Assessment requires an active effective scoring model and eligible triaged/accepted demand, and rejects the proposal submitter as assessor. Scores must be within configured criterion maxima and have evidence; completion requires every criterion to be scored and a rationale. This is assessment evidence only, not a selection recommendation or investment approval. Initial route access uses the existing local prototype portfolio-manager command entitlement, while full assessor role/scoped permissions, scoring model administration and UI remain future work.
