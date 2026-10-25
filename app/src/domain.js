@@ -457,6 +457,10 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const submission=await one(client,`SELECT submitted_by FROM m05_investment.condition_evidence_submission
         WHERE tenant_id=platform.current_tenant() AND condition_id=$1 AND id=$2`,[id,submissionId]);
       if(submission.submitted_by===context.actorId) throw new AppError(403,'Independent evidence verifier required');
+      const latest=await one(client,`SELECT id FROM m05_investment.condition_evidence_submission
+        WHERE tenant_id=platform.current_tenant() AND condition_id=$1
+        ORDER BY submitted_at DESC,id DESC LIMIT 1`,[id]);
+      if(latest.id!==submissionId) throw new AppError(409,'Newer condition evidence requires verification');
       const mandate=await client.query(`SELECT 1 FROM m05_investment.condition_verifier_mandate
         WHERE tenant_id=platform.current_tenant() AND principal_id=platform.current_actor()
         AND effective_during @> transaction_timestamp()
@@ -474,11 +478,17 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const decision=await one(client,`SELECT decision_type FROM m05_investment.investment_decision
         WHERE tenant_id=platform.current_tenant() AND id=$1`,[decisionId]);
       const conditions=(await client.query(`SELECT c.id,c.condition_type,c.description,c.due_on,
-        v.result AS verification_result,v.verified_at,
+        s.id AS latest_submission_id,s.submitted_at AS latest_submitted_at,
+        v.result AS verification_result,v.verified_at,v.submission_id AS verification_submission_id,
         (c.due_on<CURRENT_DATE AND v.result IS DISTINCT FROM 'satisfied') AS overdue
         FROM m05_investment.decision_condition c
-        LEFT JOIN LATERAL (SELECT result,verified_at FROM m05_investment.condition_verification
-          WHERE tenant_id=c.tenant_id AND condition_id=c.id ORDER BY verified_at DESC,id DESC LIMIT 1) v ON true
+        LEFT JOIN LATERAL (SELECT id,submitted_at FROM m05_investment.condition_evidence_submission
+          WHERE tenant_id=c.tenant_id AND condition_id=c.id
+          ORDER BY submitted_at DESC,id DESC LIMIT 1) s ON true
+        LEFT JOIN LATERAL (SELECT result,verified_at,submission_id FROM m05_investment.condition_verification
+          WHERE tenant_id=c.tenant_id AND condition_id=c.id
+            AND ((s.id IS NULL AND submission_id IS NULL) OR submission_id=s.id)
+          ORDER BY verified_at DESC,id DESC LIMIT 1) v ON true
         WHERE c.tenant_id=platform.current_tenant() AND c.decision_id=$1 ORDER BY c.id`,[decisionId])).rows;
       return {decisionId,decisionType:decision.decision_type,conditions,
         ...evaluateDecisionConditions(decision.decision_type,conditions)};

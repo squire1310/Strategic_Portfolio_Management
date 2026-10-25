@@ -89,17 +89,33 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.ok(forgedTime.rows[0].verified_at.getTime()>=Date.now()-60_000);
   assert.equal(forgedTime.rows[0].mandate_id,mandate.rows[0].id);
   assert.equal(forgedTime.rows[0].evidence_reference,submitted.evidence_reference);
-  await assert.rejects(direct(verifier,verifier,null,null,null),/Independent condition evidence submission required/);
+  await assert.rejects(direct(verifier,verifier,null,null,null),/Newer condition evidence requires verification/);
   await assert.rejects(direct(actor,verifier),/Verification actor and tenant context required/);
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,0);
   assert.equal(result.precedentClearance,true);
   assert.equal(result.commitmentReady,false);
   assert.equal(result.effectuationPerformed,false);
+  const revisedSubmission=await store.submitConditionEvidence({conditionId:condition.rows[0].id,
+    evidenceReference:'synthetic:revised-proof'},{tenantId:tenant,actorId:actor});
+  result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
+  assert.equal(result.outstandingPrecedents,1);
+  assert.equal(result.conditions.find(c=>c.id===condition.rows[0].id).latest_submission_id,revisedSubmission.id);
+  assert.equal(result.conditions.find(c=>c.id===condition.rows[0].id).verification_result,null);
+  assert.equal(result.commitmentReady,false);
+  await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),
+    e=>e instanceof AppError&&e.status===409);
+  await assert.rejects(direct(verifier,verifier),/Newer condition evidence requires verification/);
+  const currentPayload={...payload,submissionId:revisedSubmission.id};
+  const revisedVerification=await verifierStore.verifyDecisionCondition(currentPayload,{tenantId:tenant,actorId:verifier});
+  assert.equal(revisedVerification.evidence_reference,'synthetic:revised-proof');
+  result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
+  assert.equal(result.outstandingPrecedents,0);
+  assert.equal(result.precedentClearance,true);
   const subsequentSubmission=await store.submitConditionEvidence({conditionId:subsequent.rows[0].id,
     evidenceReference:'synthetic:monitoring-proof'},{tenantId:tenant,actorId:actor});
   await assert.rejects(direct(verifier,verifier,null,null,subsequentSubmission.id),
-    /Independent condition evidence submission required/);
+    /Newer condition evidence requires verification/);
   const later={conditionId:subsequent.rows[0].id,submissionId:subsequentSubmission.id,result:'satisfied'};
   await verifierStore.verifyDecisionCondition(later,{tenantId:tenant,actorId:verifier});
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
@@ -113,7 +129,7 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.equal(result.commitmentReady,false);
   await admin.query(`UPDATE m05_investment.condition_verifier_mandate SET revoked_at=now()
     WHERE tenant_id=$1 AND id=$2`,[tenant,mandate.rows[0].id]);
-  await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(verifierStore.verifyDecisionCondition(currentPayload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
   await assert.rejects(direct(verifier,verifier),/Effective verifier mandate required/);
   await admin.query(`INSERT INTO m05_investment.condition_verifier_mandate
     (tenant_id,principal_id,granted_by,effective_during,reason)
@@ -121,7 +137,7 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
           ($1,$2,$3,tstzrange(now()-interval '2 days',now()-interval '1 day','[)'),$5)`,
     [tenant,verifier,approver,'Future mandate must not authorise current verification',
       'Expired mandate must not authorise current verification']);
-  await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(verifierStore.verifyDecisionCondition(currentPayload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
   await assert.rejects(direct(verifier,verifier),/Effective verifier mandate required/);
   await admin.query(`INSERT INTO m05_investment.condition_verifier_mandate
     (tenant_id,principal_id,granted_by,effective_during,reason)
