@@ -421,6 +421,49 @@ export function createStore({ connectionString, tenantId, actorId }) {
         candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
     },{context});
   }
+  async function recordCommitteeSession(body, context) {
+    if (!body || typeof body!=='object' || !Array.isArray(body.participants)) throw new AppError(400,'Participant evidence required');
+    const investmentId=uuid(body.investmentId,'investmentId'), decisionBodyId=uuid(body.decisionBodyId,'decisionBodyId');
+    const heldAt=body.heldAt;
+    if(typeof heldAt!=='string'||Number.isNaN(Date.parse(heldAt))) throw new AppError(400,'Valid meeting timestamp required');
+    const required=body.quorumRequired;
+    if(!Number.isInteger(required)||required<1||required>100) throw new AppError(400,'Valid quorum required');
+    if(!body.participants.length) throw new AppError(400,'Meeting participants required');
+    return transaction(async client => {
+      const bodyRow=await one(client,`SELECT chair_id FROM m06_governance.decision_body WHERE tenant_id=platform.current_tenant() AND id=$1`,[decisionBodyId]);
+      if(bodyRow.chair_id!==context.actorId) throw new AppError(403,'Decision body chair required');
+      await one(client,`SELECT id FROM m05_investment.investment WHERE tenant_id=platform.current_tenant() AND id=$1`,[investmentId]);
+      const delegates=(await client.query(`SELECT DISTINCT delegate_id FROM m06_governance.delegation
+        WHERE tenant_id=platform.current_tenant() AND decision_body_id=$1
+        AND effective_during @> $2::timestamptz`,[decisionBodyId,heldAt])).rows.map(r=>r.delegate_id);
+      const participants=body.participants.map(p=>({
+        principalId:uuid(p.principalId,'principalId'),attended:p.attended===true,
+        conflictDeclared:p.conflictDeclared===true,recused:p.recused===true,vote:p.vote??null,
+        evidenceNote:p.evidenceNote??null
+      }));
+      for(const p of participants) {
+        if(p.conflictDeclared && (typeof p.evidenceNote!=='string'||!p.evidenceNote.trim()))
+          throw new AppError(400,'Conflict evidence note required');
+      }
+      let summary;
+      try {summary=evaluateCommitteeQuorum({required,participants,eligiblePrincipalIds:delegates});}
+      catch(e){throw new AppError(400,e.message);}
+      if(!summary.quorumMet) throw new AppError(409,'Committee quorum not met');
+      const session=await one(client,`INSERT INTO m06_governance.committee_session
+        (tenant_id,decision_body_id,investment_id,held_at,quorum_required,recorded_by)
+        VALUES(platform.current_tenant(),$1,$2,$3,$4,platform.current_actor()) RETURNING *`,
+        [decisionBodyId,investmentId,heldAt,required]);
+      for(const p of participants) await client.query(`INSERT INTO m06_governance.committee_participant
+        (tenant_id,session_id,principal_id,attended,conflict_declared,recused,vote,evidence_note)
+        VALUES(platform.current_tenant(),$1,$2,$3,$4,$5,$6,$7)`,
+        [session.id,p.principalId,p.attended,p.conflictDeclared,p.recused,p.vote,p.evidenceNote]);
+      const finalisation=await one(client,`INSERT INTO m06_governance.committee_finalisation
+        (tenant_id,session_id,finalised_by,quorum_met,evidence_snapshot)
+        VALUES(platform.current_tenant(),$1,platform.current_actor(),true,$2::jsonb) RETURNING *`,
+        [session.id,JSON.stringify({delegates,participants,summary,heldAt,decisionBodyId,investmentId})]);
+      return {session,finalisation,summary};
+    },{write:true,context});
+  }
   async function committeeSessionEvaluation(context, sessionId) {
     uuid(sessionId,'sessionId');
     return transaction(async client => {
@@ -799,7 +842,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, close: () => pool.end() };
 }
 
 export function httpError(error) {
