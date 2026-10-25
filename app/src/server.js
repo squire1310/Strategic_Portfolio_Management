@@ -72,8 +72,12 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         return respond(res, 200, await readFile(join(publicDir, name)), type);
       }
       if (path.startsWith('/api/') && !session) throw new AppError(401, 'Sign in required');
+      if (path.startsWith('/api/') && session && session.hasAppAccess === false) throw new AppError(403, 'Application entitlement required');
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
-      if (req.method === 'GET' && path === '/api/workspace') return respond(res, 200, await store.workspace(session.context));
+      if (req.method === 'GET' && path === '/api/workspace') {
+        if (!session.user.allowedCommands.length && session.user.role !== 'viewer') throw new AppError(403, 'Workspace access denied');
+        return respond(res, 200, await store.workspace(session.context));
+      }
       if (req.method === 'GET' && path.startsWith('/api/history/')) {
         const parts = path.split('/');
         if (parts.length !== 6) throw new AppError(404, 'Unknown history path');
