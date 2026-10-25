@@ -407,6 +407,59 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
+  async function assessment(action, body, context) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
+    return transaction(async client => {
+      if (action === 'create') {
+        const demandId=uuid(body.demandId,'demandId'), modelId=uuid(body.scoringModelId,'scoringModelId');
+        const demand=await one(client,`SELECT status,submitted_by FROM m03_demand.demand
+          WHERE tenant_id=platform.current_tenant() AND id=$1`,[demandId]);
+        if(!['triage','assessed','accepted'].includes(demand.status)) throw new AppError(409,'Demand not assessment eligible');
+        if(demand.submitted_by===context.actorId) throw new AppError(403,'Independent assessor required');
+        await one(client,`SELECT id FROM m04_selection.scoring_model
+          WHERE tenant_id=platform.current_tenant() AND id=$1 AND status='active'
+            AND effective_during @> CURRENT_DATE`,[modelId],'Active scoring model required');
+        return one(client,`INSERT INTO m04_selection.assessment
+          (tenant_id,demand_id,scoring_model_id,assessor_id)
+          VALUES(platform.current_tenant(),$1,$2,platform.current_actor()) RETURNING *`,[demandId,modelId]);
+      }
+      const id=uuid(body.id,'id'), expected=version(body.expectedVersion);
+      const current=await one(client,`SELECT * FROM m04_selection.assessment
+        WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
+      if(current.assessor_id!==context.actorId) throw new AppError(403,'Assessment owner required');
+      if(current.status!=='draft'||current.row_version!==expected) throw new AppError(409,'Assessment closed or stale');
+      if(action==='score') {
+        const criterionId=uuid(body.criterionId,'criterionId');
+        const criterion=await one(client,`SELECT maximum_score FROM m04_selection.criterion
+          WHERE tenant_id=platform.current_tenant() AND scoring_model_id=$1 AND id=$2`,
+          [current.scoring_model_id,criterionId]);
+        const score=finiteNumber(body.score,'score');
+        if(score<0||score>Number(criterion.maximum_score)) throw new AppError(400,'Score outside criterion range');
+        const saved=await one(client,`INSERT INTO m04_selection.criterion_score
+          (tenant_id,assessment_id,scoring_model_id,criterion_id,score,evidence)
+          VALUES(platform.current_tenant(),$1,$2,$3,$4,$5)
+          ON CONFLICT(tenant_id,assessment_id,criterion_id) DO UPDATE
+          SET score=EXCLUDED.score,evidence=EXCLUDED.evidence RETURNING *`,
+          [id,current.scoring_model_id,criterionId,score,requiredText(body.evidence,'evidence',2000)]);
+        const assessment=await one(client,`UPDATE m04_selection.assessment SET rationale=COALESCE(rationale,'Scoring in progress')
+          WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,[id]);
+        return {assessment,score:saved};
+      }
+      if(action==='complete') {
+        const coverage=await client.query(`SELECT
+          (SELECT count(*)::int FROM m04_selection.criterion WHERE tenant_id=platform.current_tenant() AND scoring_model_id=$1) AS total,
+          (SELECT count(*)::int FROM m04_selection.criterion_score WHERE tenant_id=platform.current_tenant() AND assessment_id=$2) AS scored`,
+          [current.scoring_model_id,id]);
+        const {total,scored}=coverage.rows[0];
+        if(!total||total!==scored) throw new AppError(409,'Every scoring criterion requires evidence');
+        return one(client,`UPDATE m04_selection.assessment SET status='completed',
+          completed_at=transaction_timestamp(),rationale=$2
+          WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,
+          [id,requiredText(body.rationale,'rationale',2000)]);
+      }
+      throw new AppError(404,'Unknown assessment action');
+    },{write:true,context});
+  }
   async function proposalList(context, reviewer = false) {
     return transaction(async client => {
       const rows = await client.query(`SELECT d.id,d.code,d.title,d.description,d.status,d.row_version,
@@ -586,7 +639,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, close: () => pool.end() };
 }
 
 export function httpError(error) {
