@@ -77,9 +77,10 @@ export function createStore({ connectionString, tenantId, actorId }) {
     } finally { client.release(); }
   }
 
-  async function command(name, body, context, portfolioIds = null) {
+  async function command(name, body, context, portfolioIds = null, strategyIds = null) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400, 'JSON object required');
     return transaction(async client => {
+      if (strategyIds !== null && ['strategy','strategy-update','strategy-retire','objective','objective-update','objective-parent','outcome','outcome-update','outcome-retire','measure','measure-update','measure-retire','observation','observation-correction','observation-void'].includes(name)) throw new AppError(403, 'Strategy scoped writes require object-level verification');
       if (portfolioIds !== null) {
         const allowed = new Set(['portfolio-update','portfolio-retire','membership','membership-update','membership-remove','alignment','alignment-remove','investment-update']);
         if (!allowed.has(name)) throw new AppError(403, 'Scoped command not supported');
@@ -359,31 +360,43 @@ export function createStore({ connectionString, tenantId, actorId }) {
     investments: `EXISTS (SELECT 1 FROM m02_portfolio.portfolio_membership pm
       WHERE pm.tenant_id=platform.current_tenant() AND pm.investment_id=investment.id AND pm.portfolio_id = ANY($1::uuid[]))`
   };
-  async function workspace(context, readKeys = null, portfolioIds = null) {
+  const strategyPredicate = {
+    strategies: 'id = ANY($1::uuid[])',
+    objectives: 'strategy_id = ANY($1::uuid[])',
+    outcomes: 'EXISTS (SELECT 1 FROM m01_strategy.objective o WHERE o.tenant_id=platform.current_tenant() AND o.id=outcome.objective_id AND o.strategy_id=ANY($1::uuid[]))',
+    measures: 'EXISTS (SELECT 1 FROM m01_strategy.outcome u JOIN m01_strategy.objective o ON o.tenant_id=u.tenant_id AND o.id=u.objective_id WHERE u.tenant_id=platform.current_tenant() AND u.id=measure.outcome_id AND o.strategy_id=ANY($1::uuid[]))',
+    observations: 'EXISTS (SELECT 1 FROM m01_strategy.measure m JOIN m01_strategy.outcome u ON u.tenant_id=m.tenant_id AND u.id=m.outcome_id JOIN m01_strategy.objective o ON o.tenant_id=u.tenant_id AND o.id=u.objective_id WHERE m.tenant_id=platform.current_tenant() AND m.id=measure_observation.measure_id AND o.strategy_id=ANY($1::uuid[]))'
+  };
+  async function workspace(context, readKeys = null, portfolioIds = null, strategyIds = null) {
     return transaction(async client => {
       const data = {};
       for (const [key, table] of Object.entries(tables)) {
         if (readKeys !== null && !readKeys.includes(key)) { data[key] = []; continue; }
         if (portfolioIds !== null && key === 'categories') { data[key] = []; continue; }
         if (portfolioIds !== null && !portfolioPredicate[key] && ['portfolios', 'memberships', 'alignments', 'investments'].includes(key)) { data[key] = []; continue; }
-        const sql = portfolioIds !== null && portfolioPredicate[key]
-          ? `SELECT * FROM ${table} WHERE tenant_id=platform.current_tenant() AND ${portfolioPredicate[key]} ORDER BY 1,2 LIMIT 500`
+        const isStrategy = strategyIds !== null && Object.hasOwn(strategyPredicate, key);
+        const restricted = isStrategy ? strategyPredicate[key] : portfolioIds !== null ? portfolioPredicate[key] : null;
+        const filterIds = isStrategy ? strategyIds : portfolioIds;
+        const sql = restricted
+          ? `SELECT * FROM ${table} WHERE tenant_id=platform.current_tenant() AND ${restricted} ORDER BY 1,2 LIMIT 500`
           : `SELECT * FROM ${table} WHERE tenant_id=platform.current_tenant() ORDER BY 1,2 LIMIT 500`;
-        data[key] = (await client.query(sql, portfolioIds !== null && portfolioPredicate[key] ? [portfolioIds] : [])).rows;
+        data[key] = (await client.query(sql, restricted ? [filterIds] : [])).rows;
       }
       return data;
     }, { context });
   }
-  async function history(schema, table, id, context, readKeys = null, portfolioIds = null) {
+  async function history(schema, table, id, context, readKeys = null, portfolioIds = null, strategyIds = null) {
     const full = `${schema}.${table}`;
     const key = Object.keys(tables).find(k => tables[k] === full);
     if (!key) throw new AppError(404, 'Unknown entity type');
     if (readKeys !== null && !readKeys.includes(key)) throw new AppError(404, 'Record not found');
     uuid(id, 'id');
     return transaction(async client => {
-      if (portfolioIds !== null) {
-        if (!portfolioPredicate[key]) throw new AppError(404, 'Record not found');
-        const accessible = await client.query(`SELECT 1 FROM ${full} WHERE tenant_id=platform.current_tenant() AND id=$2 AND ${portfolioPredicate[key].replaceAll('$1', '$1')} LIMIT 1`, [portfolioIds, id]);
+      const restricted = strategyIds !== null && Object.hasOwn(strategyPredicate,key) ? strategyPredicate[key] : portfolioIds !== null ? portfolioPredicate[key] : null;
+      const scopeIds = strategyIds !== null && Object.hasOwn(strategyPredicate,key) ? strategyIds : portfolioIds;
+      if ((strategyIds !== null && Object.hasOwn(strategyPredicate,key)) || (portfolioIds !== null && Object.hasOwn(portfolioPredicate,key))) {
+        if (!restricted) throw new AppError(404, 'Record not found');
+        const accessible = await client.query(`SELECT 1 FROM ${full} WHERE tenant_id=platform.current_tenant() AND id=$2 AND ${restricted} LIMIT 1`, [scopeIds, id]);
         if (!accessible.rowCount) throw new AppError(404, 'Record not found');
       }
       const revisions = (await client.query(`SELECT version_no,lower(recorded_during) AS recorded_at,valid_during,payload,operation,actor_id
