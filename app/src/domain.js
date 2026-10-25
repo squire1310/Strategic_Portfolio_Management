@@ -407,7 +407,19 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
-  return { command, workspace, history, close: () => pool.end() };
+  async function assignedScopes(context) {
+    return transaction(async client => {
+      const rows = (await client.query(`SELECT object_type,object_id FROM platform.object_access_assignment
+        WHERE tenant_id=platform.current_tenant() AND principal_id=platform.current_actor()
+          AND effective_during @> transaction_timestamp()
+          AND (revoked_at IS NULL OR revoked_at > transaction_timestamp())`)).rows;
+      return {
+        portfolioIds: rows.filter(r => r.object_type === 'portfolio').map(r => r.object_id),
+        strategyIds: rows.filter(r => r.object_type === 'strategy').map(r => r.object_id)
+      };
+    }, { context });
+  }
+  return { command, workspace, history, assignedScopes, close: () => pool.end() };
 }
 
 export function httpError(error) {
