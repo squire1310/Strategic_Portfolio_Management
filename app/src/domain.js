@@ -421,6 +421,26 @@ export function createStore({ connectionString, tenantId, actorId }) {
         candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
     },{context});
   }
+  async function committeeDecisionReadiness(context, sessionId) {
+    uuid(sessionId,'sessionId');
+    return transaction(async client => {
+      const result=await one(client,`SELECT s.id,s.investment_id,s.decision_body_id,
+        f.evidence_snapshot,f.finalised_at,b.chair_id
+        FROM m06_governance.committee_session s
+        JOIN m06_governance.committee_finalisation f ON f.tenant_id=s.tenant_id AND f.session_id=s.id
+        JOIN m06_governance.decision_body b ON b.tenant_id=s.tenant_id AND b.id=s.decision_body_id
+        WHERE s.tenant_id=platform.current_tenant() AND s.id=$1`,[sessionId]);
+      if(result.chair_id!==context.actorId) throw new AppError(403,'Committee chair required');
+      if(result.evidence_snapshot?.summary?.quorumMet!==true) throw new AppError(409,'Quorum evidence required');
+      const existing=(await client.query(`SELECT id FROM m05_investment.investment_decision
+        WHERE tenant_id=platform.current_tenant() AND investment_id=$1 AND decision_body_id=$2 LIMIT 1`,
+        [result.investment_id,result.decision_body_id])).rows;
+      return {sessionId,investmentId:result.investment_id,decisionBodyId:result.decision_body_id,
+        finalisedAt:result.finalised_at,quorumVerified:true,
+        priorDecisionExists:existing.length>0,approvalGranted:false,
+        status:'evidence_ready_only'};
+    },{context});
+  }
   async function recordCommitteeSession(body, context) {
     if (!body || typeof body!=='object' || !Array.isArray(body.participants)) throw new AppError(400,'Participant evidence required');
     const investmentId=uuid(body.investmentId,'investmentId'), decisionBodyId=uuid(body.decisionBodyId,'decisionBodyId');
@@ -842,7 +862,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, close: () => pool.end() };
 }
 
 export function httpError(error) {
