@@ -38,11 +38,6 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   const evidence=await store.verifyDecisionCondition({conditionId:condition.rows[0].id,
     result:'satisfied',evidenceReference:'synthetic:independent-proof'}, {tenantId:tenant,actorId:actor});
   assert.equal(evidence.result,'satisfied');
-  /* Previously fixture inserted directly; now verify via governed service. */
-  /* await admin.query(`INSERT INTO m05_investment.condition_verification
-    (tenant_id,condition_id,verified_by,result,evidence_reference)
-    VALUES($1,$2,$3,'satisfied','synthetic:test-evidence')`,[tenant,condition.rows[0].id,actor]);
-  */
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,0);
   assert.equal(result.precedentClearance,true);
