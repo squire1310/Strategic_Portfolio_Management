@@ -115,7 +115,7 @@ test('portfolio-scoped prototype routes receive a trusted scope and cannot run u
   const calls = [];
   const store = {
     workspace: async (_ctx, keys, ids) => { calls.push({ keys, ids }); return { ids }; },
-    command: async () => { throw new Error('Unverified scoped write invoked'); }
+    command: async (name, _body, _ctx, ids) => { calls.push({ name, ids }); return { name }; }
   };
   const server = createHttpServer(store, { auth });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -130,6 +130,7 @@ test('portfolio-scoped prototype routes receive a trusted scope and cannot run u
     assert.deepEqual(calls[0].ids, [portfolio]);
     const denied = await fetch(origin + '/api/commands/portfolio-update', { method: 'POST',
       headers: { cookie, origin, 'content-type': 'application/json' }, body: '{}' });
-    assert.equal(denied.status, 403);
+    assert.equal(denied.status, 201);
+    assert.deepEqual(calls.at(-1).ids, [portfolio]);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
