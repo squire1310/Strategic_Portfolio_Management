@@ -422,6 +422,8 @@ export function createStore({ connectionString, tenantId, actorId }) {
         const table = type === 'strategy' ? 'm01_strategy.strategy' : 'm02_portfolio.portfolio';
         const found = await client.query(`SELECT 1 FROM ${table} WHERE tenant_id=platform.current_tenant() AND id=$1`,[target]);
         if (!found.rowCount) throw new AppError(404,'Work item target not found');
+        const scope = type === 'strategy' ? strategyIds : portfolioIds;
+        if (scope !== null && !scope.includes(target)) throw new AppError(403,'Work item target scope denied');
         return one(client,`INSERT INTO platform.work_item
           (tenant_id,object_type,object_id,title,assignee_id,created_by,due_on)
           VALUES(platform.current_tenant(),$1,$2,$3,$4,platform.current_actor(),$5) RETURNING *`,
@@ -431,6 +433,8 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const id = uuid(body.id,'id');
       const expected = version(body.expectedVersion);
       const row = await one(client,`SELECT * FROM platform.work_item WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
+      const scope = row.object_type === 'strategy' ? strategyIds : portfolioIds;
+      if (scope !== null && !scope.includes(row.object_id)) throw new AppError(404,'Work item not found');
       if (row.state !== 'open' || row.row_version !== expected) throw new AppError(409,'Work item closed or stale');
       if (action === 'reassign') {
         if (row.created_by !== context.actorId) throw new AppError(403,'Only creator may reassign');
