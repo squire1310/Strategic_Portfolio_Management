@@ -79,5 +79,28 @@ test('B011 approved decision freezes evidence and conditions without effectuatio
       (SELECT count(*)::int FROM m05_investment.committee_decision_evidence WHERE tenant_id=$1 AND decision_id=$3) AS links`,
       [tenantId,promoted.investment.id,approved.decision.id]);
     assert.deepEqual(result.rows[0],{commitments:0,links:1});
+    const expiredDelegateId=randomUUID();
+    await db.query('INSERT INTO platform.principal(principal_id,subject,display_name) VALUES($1,$2,$3)',
+      [expiredDelegateId,'test:expired-approver-'+expiredDelegateId,'Expired delegate']);
+    await db.query("INSERT INTO platform.tenant_member(tenant_id,principal_id,member_role) VALUES($1,$2,'approver')",
+      [tenantId,expiredDelegateId]);
+    await db.query(`INSERT INTO m06_governance.delegation
+      (tenant_id,decision_body_id,delegate_id,scope_code,amount_limit,currency_code,effective_during)
+      VALUES($1,$2,$3,'investment',100000,'GBP',tstzrange(now()-interval '2 days',now()-interval '1 day','[)'))`,
+      [tenantId,body.id,expiredDelegateId]);
+    const expiredDelegate=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,
+      tenantId,actorId:expiredDelegateId});
+    try{
+      await assert.rejects(expiredDelegate.recordInvestmentDecision(request,{tenantId,actorId:expiredDelegateId}),
+        e=>e instanceof AppError&&e.status===403);
+    }finally{await expiredDelegate.close();}
+    const caseId=(await db.query(`SELECT id FROM m03_demand.business_case
+      WHERE tenant_id=$1 AND demand_id=$2`,[tenantId,proposal.id])).rows[0].id;
+    await db.query(`INSERT INTO m03_demand.case_revision
+      (tenant_id,business_case_id,revision_no,summary,options,assumptions,prepared_by)
+      VALUES($1,$2,2,'New material case evidence','[]'::jsonb,'[]'::jsonb,$3)`,
+      [tenantId,caseId,ownerId]);
+    await assert.rejects(chair.recordInvestmentDecision(request,chairContext),
+      e=>e instanceof AppError&&e.status===409&&/stale case evidence/.test(e.message));
   } finally {await Promise.all([owner.close(),assessor.close(),chair.close()]);await db.end();}
 });
