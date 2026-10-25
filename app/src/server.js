@@ -84,6 +84,11 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         strategyScope = assignments.strategyIds;
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
+      if (req.method === 'GET' && /^\/api\/scenarios\/[0-9a-f-]{36}\/ranking$/.test(path)) {
+        if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped scenario access not yet implemented');
+        if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Scenario permission required');
+        return respond(res,200,await store.scenarioRanking(session.context,path.split('/')[3]));
+      }
       if (req.method === 'POST' && path.startsWith('/api/recommendations/')) {
         if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped recommendation permission not yet implemented');
         if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Recommendation permission required');
