@@ -488,6 +488,8 @@ export function createStore({ connectionString, tenantId, actorId }) {
           (tenant_id,demand_id,case_revision_id,reviewer_id,outcome,feedback)
           VALUES(platform.current_tenant(),$1,$2,platform.current_actor(),$3,$4) RETURNING *`,
           [id,revision.id,outcome,requiredText(body.feedback,'feedback',2000)]);
+        const assignedReview=await client.query(`SELECT assignee_id FROM platform.work_item WHERE tenant_id=platform.current_tenant() AND workflow_kind='proposal_review' AND case_revision_id=$1 AND state='open'`,[revision.id]);
+        if (assignedReview.rowCount && assignedReview.rows[0].assignee_id!==context.actorId) throw new AppError(403,'Review assigned to another reviewer');
         const pending=await client.query(`UPDATE platform.work_item SET state='completed',
           completed_at=transaction_timestamp(),completion_note='Intake review recorded'
           WHERE tenant_id=platform.current_tenant() AND workflow_kind='proposal_review'
