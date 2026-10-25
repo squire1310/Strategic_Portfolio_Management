@@ -31,3 +31,6 @@ Applications must set `app.tenant_id` and `app.actor_id` with `SET LOCAL` inside
 
 Local command discovery found no `psql`, PostgreSQL server binaries, Docker, or Python executable in PATH. The SQL has been reviewed statically, but the migrations and smoke test have **not** been executed against PostgreSQL in this workspace. Run the commands above and `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/smoke.sql` in CI before treating this as deployable.
 
+## Product experience design (25 October 2026)
+
+The seven approved multi-persona design decisions are recorded in [UX design decisions](docs/ux-design-decisions.md). See the [18-role persona catalogue](docs/user-role-persona-catalogue-v1.0.md) and [11 cross-role user journeys](docs/user-journey-catalogue-v1.0.md). These are UX/design baselines for validation; they do not supersede the approved [solution overview](docs/solution-overview.md), reconciled domain model or existing implementation scope.
