@@ -266,12 +266,14 @@ async function load() {
   }
   document.getElementById('history').hidden = window.location.pathname !== '/history';
   document.getElementById('inbox').hidden = window.location.pathname !== '/inbox';
+  document.getElementById('proposals').hidden = window.location.pathname !== '/proposals';
   for (const form of document.querySelectorAll('form[data-command]')) form.hidden = !user.allowedCommands.includes(form.dataset.command);
   const response = await fetch('/api/workspace');
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || 'Could not load records');
   workspace = payload;
   render();
+  if (window.location.pathname === '/proposals') await loadProposals(user);
   if (window.location.pathname === '/inbox') { fillWorkItemTargets(); await loadInbox(); }
   if (window.location.pathname === '/history') {
     const params = new URLSearchParams(window.location.search);
@@ -307,6 +309,51 @@ document.querySelector('#work-item-create').addEventListener('submit', async eve
     await loadInbox();
   } catch (error) { show(error.message,'error'); }
 });
+
+
+async function proposalRequest(action,body) {
+ const response=await fetch('/api/proposals/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ const result=await response.json(); if(!response.ok) throw new Error(result.error || 'Proposal request failed'); return result;
+}
+document.querySelector('#proposal-create').addEventListener('submit',async event=>{
+ event.preventDefault();const form=event.currentTarget;try{
+ await proposalRequest('create',Object.fromEntries(new FormData(form).entries()));
+ form.reset();show('Draft proposal created.');await loadProposals();
+ }catch(error){show(error.message,'error');}
+});
+async function loadProposals() {
+ const roles=[['mine','proposal-mine'],['review-queue','proposal-review-queue']];
+ for(const [endpoint,id] of roles){
+  const node=document.getElementById(id);node.replaceChildren();
+  const response=await fetch('/api/proposals/'+endpoint);
+  if(response.status===403){node.textContent='Not available to your role.';continue;}
+  const list=await response.json();if(!response.ok){node.textContent=list.error||'Unable to load';continue;}
+  if(!list.length){node.textContent='No proposals.';continue;}
+  for(const item of list){
+   const box=document.createElement('div');box.className='govuk-form-group';
+   const heading=document.createElement('h4');heading.className='govuk-heading-s';heading.textContent=item.title+' ('+item.status+')';box.append(heading);
+   if(item.latest_feedback){const p=document.createElement('p');p.className='govuk-body';p.textContent='Reviewer feedback: '+item.latest_feedback;box.append(p);}
+   if(endpoint==='mine'&&item.status==='draft'){
+    const summary=document.createElement('textarea');summary.className='govuk-textarea';summary.placeholder='Business-case summary';summary.setAttribute('aria-label','Business-case summary for '+item.title);box.append(summary);
+    const button=document.createElement('button');button.className='govuk-button';button.textContent='Submit revision';button.addEventListener('click',async()=>{try{
+      await proposalRequest('submit',{id:item.id,expectedVersion:item.row_version,summary:summary.value,options:[],assumptions:[]});
+      show('Proposal submitted.');await loadProposals();
+    }catch(e){show(e.message,'error');}});box.append(button);
+   }
+   if(endpoint==='review-queue'){
+    const feedback=document.createElement('textarea');feedback.className='govuk-textarea';feedback.placeholder='Review feedback';feedback.setAttribute('aria-label','Feedback for '+item.title);box.append(feedback);
+    for(const [outcome,label] of [['return_for_correction','Return for correction'],['accept_for_assessment','Accept for assessment']]){
+      const button=document.createElement('button');button.className='govuk-button govuk-button--secondary';button.textContent=label;
+      button.addEventListener('click',async()=>{try{
+        await proposalRequest('review',{id:item.id,expectedVersion:item.row_version,outcome,feedback:feedback.value});
+        show('Review saved.');await loadProposals();
+      }catch(e){show(e.message,'error');}});box.append(button);
+    }
+   }
+   node.append(box);
+  }
+ }
+}
 
 async function loadInbox() {
   const container = document.getElementById('work-items-list');
