@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { roleCommands, commandsForRole } from './permissions.js';
+import { createGroupResolver, prototypeModeAllowed, validatePrototypeAccount } from './identity.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const usernamePattern = /^[a-z][a-z0-9._-]{2,63}$/;
@@ -23,7 +24,8 @@ function passwordMatches(password, encoded) {
   return timingSafeEqual(candidate, Buffer.from(match[2], 'hex'));
 }
 
-export function createAuth(users) {
+export function createAuth(users, { groupMappings = {}, requireGroups = false } = {}) {
+  const resolveGroups = createGroupResolver(groupMappings);
   if (!Array.isArray(users) || users.length === 0) throw new Error('At least one local account is required');
   const byName = new Map();
   for (const user of users) {
@@ -32,8 +34,12 @@ export function createAuth(users) {
         !/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{64}$/.test(user.passwordHash || '') || byName.has(user.username)) {
       throw new Error('Invalid or duplicate local account configuration');
     }
+    if (user.groupIds !== undefined || requireGroups) validatePrototypeAccount({ ...user, groupIds: user.groupIds ?? [] });
+    if (requireGroups && !user.groupIds?.length) throw new Error('Prototype accounts must have a mapped group');
+    const entitlements = user.groupIds ? resolveGroups(user.groupIds) : { commands: commandsForRole(user.role) };
     byName.set(user.username, { username: user.username, displayName: user.displayName || user.username,
-      tenantId: user.tenantId, actorId: user.actorId, role: user.role, passwordHash: user.passwordHash });
+      tenantId: user.tenantId, actorId: user.actorId, role: user.role, passwordHash: user.passwordHash,
+      groupIds: user.groupIds || [], allowedCommands: entitlements.commands });
   }
   const sessions = new Map();
   const failures = new Map();
@@ -64,7 +70,10 @@ export function createAuth(users) {
     const session = sessions.get(token);
     if (!session) return null;
     if (session.expires <= Date.now()) { sessions.delete(token); return null; }
-    return { token, user: publicUser(session.user), context: { tenantId: session.user.tenantId, actorId: session.user.actorId } };
+    const current = byName.get(session.user.username);
+    if (!current) return null;
+    const refreshed = current.groupIds.length ? resolveGroups(current.groupIds).commands : current.allowedCommands;
+    return { token, user: publicUser({ ...current, allowedCommands: refreshed }), context: { tenantId: current.tenantId, actorId: current.actorId } };
   }
 
   function logout(token) { if (token) sessions.delete(token); }
@@ -72,13 +81,17 @@ export function createAuth(users) {
 }
 
 function publicUser(user) { return { username: user.username, displayName: user.displayName,
-  role: user.role, allowedCommands: commandsForRole(user.role) }; }
+  role: user.role, allowedCommands: user.allowedCommands ?? commandsForRole(user.role) }; }
 
 export function authFromEnvironment() {
+  prototypeModeAllowed();
   let users;
   try { users = JSON.parse(process.env.SPM_LOCAL_USERS_JSON || ''); }
   catch { throw new Error('SPM_LOCAL_USERS_JSON must contain a local account array'); }
-  return createAuth(users);
+  let groupMappings = {};
+  try { groupMappings = JSON.parse(process.env.SPM_GROUP_MAPPINGS_JSON || '{}'); }
+  catch { throw new Error('SPM_GROUP_MAPPINGS_JSON must be an object'); }
+  return createAuth(users, { groupMappings, requireGroups: process.env.SPM_IDENTITY_PROVIDER === 'prototype' });
 }
 
 export function sessionCookie(token, secure) {
