@@ -407,6 +407,43 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
+  async function workItem(action, body, context) {
+    return transaction(async client => {
+      if (action === 'inbox') return (await client.query(`SELECT * FROM platform.work_item
+        WHERE tenant_id=platform.current_tenant() AND assignee_id=platform.current_actor()
+        ORDER BY due_on NULLS LAST, created_at DESC LIMIT 200`)).rows;
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
+      if (action === 'create') {
+        const type = requiredText(body.objectType,'objectType',20);
+        if (!['portfolio','strategy'].includes(type)) throw new AppError(400,'Unsupported work item target');
+        const target = uuid(body.objectId,'objectId');
+        const table = type === 'strategy' ? 'm01_strategy.strategy' : 'm02_portfolio.portfolio';
+        const found = await client.query(`SELECT 1 FROM ${table} WHERE tenant_id=platform.current_tenant() AND id=$1`,[target]);
+        if (!found.rowCount) throw new AppError(404,'Work item target not found');
+        return one(client,`INSERT INTO platform.work_item
+          (tenant_id,object_type,object_id,title,assignee_id,created_by,due_on)
+          VALUES(platform.current_tenant(),$1,$2,$3,$4,platform.current_actor(),$5) RETURNING *`,
+          [type,target,requiredText(body.title,'title',200),uuid(body.assigneeId,'assigneeId'),
+            optionalDate(body.dueOn,'dueOn')]);
+      }
+      const id = uuid(body.id,'id');
+      const expected = version(body.expectedVersion);
+      const row = await one(client,`SELECT * FROM platform.work_item WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
+      if (row.state !== 'open' || row.row_version !== expected) throw new AppError(409,'Work item closed or stale');
+      if (action === 'reassign') {
+        if (row.created_by !== context.actorId) throw new AppError(403,'Only creator may reassign');
+        return one(client,`UPDATE platform.work_item SET assignee_id=$2 WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,
+          [id,uuid(body.assigneeId,'assigneeId')]);
+      }
+      if (action === 'complete') {
+        if (row.assignee_id !== context.actorId) throw new AppError(403,'Only assignee may complete');
+        return one(client,`UPDATE platform.work_item SET state='completed',completed_at=transaction_timestamp(),
+          completion_note=$2 WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,
+          [id,requiredText(body.note,'note',2000)]);
+      }
+      throw new AppError(404,'Unknown work item action');
+    },{write:action!=='inbox',context});
+  }
   async function assignedScopes(context) {
     return transaction(async client => {
       const rows = (await client.query(`SELECT object_type,object_id FROM platform.object_access_assignment
@@ -419,7 +456,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, close: () => pool.end() };
 }
 
 export function httpError(error) {
