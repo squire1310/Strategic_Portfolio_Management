@@ -1,5 +1,5 @@
 import pg from 'pg';
-import {validateScenarioConstraints,evaluateScenarioConstraint} from './scenario-constraints.js';
+import {validateScenarioConstraints,evaluateScenarioConstraint,rankScenarioCandidates} from './scenario-constraints.js';
 import { randomUUID } from 'node:crypto';
 
 const { Pool } = pg;
@@ -408,6 +408,18 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
+  async function scenarioRanking(context, scenarioId) {
+    uuid(scenarioId,'scenarioId');
+    return transaction(async client => {
+      const scenario=await one(client,`SELECT * FROM m04_selection.scenario
+        WHERE tenant_id=platform.current_tenant() AND id=$1`,[scenarioId]);
+      if(scenario.owner_id!==context.actorId) throw new AppError(403,'Scenario owner required');
+      const candidates=(await client.query(`SELECT id,aggregate_score FROM m04_selection.scenario_candidate
+        WHERE tenant_id=platform.current_tenant() AND scenario_id=$1`,[scenarioId])).rows;
+      return {scenarioId,scenarioStatus:scenario.status,
+        candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
+    },{context});
+  }
   async function recommendation(action, body, context) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
     return transaction(async client => {
@@ -718,7 +730,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, close: () => pool.end() };
 }
 
 export function httpError(error) {
