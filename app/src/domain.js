@@ -407,6 +407,49 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
+  async function proposal(action, body, context) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
+    return transaction(async client => {
+      if (action === 'create') {
+        return one(client,`INSERT INTO m03_demand.demand
+          (tenant_id,code,title,description,sponsor_id,submitted_by)
+          VALUES(platform.current_tenant(),$1,$2,$3,platform.current_actor(),platform.current_actor()) RETURNING *`,
+          [code(body.code),requiredText(body.title,'title',200),optionalText(body.description,'description')]);
+      }
+      const id=uuid(body.id,'id');
+      const current=await one(client,`SELECT * FROM m03_demand.demand
+        WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
+      if(current.submitted_by !== context.actorId) throw new AppError(403,'Proposal owner required');
+      if(current.row_version !== version(body.expectedVersion)) throw new AppError(409,'Stale proposal');
+      if(action === 'edit') {
+        if(current.status !== 'draft') throw new AppError(409,'Only draft proposals can be edited');
+        return one(client,`UPDATE m03_demand.demand SET title=$2,description=$3
+          WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,
+          [id,requiredText(body.title,'title',200),optionalText(body.description,'description')]);
+      }
+      if(action === 'submit') {
+        if(current.status !== 'draft') throw new AppError(409,'Proposal is not in draft');
+        const summary=requiredText(body.summary,'summary',4000);
+        if(!Array.isArray(body.options)||!Array.isArray(body.assumptions))
+          throw new AppError(400,'Options and assumptions must be arrays');
+        const businessCase=await client.query(`INSERT INTO m03_demand.business_case
+          (tenant_id,demand_id,owner_id,title) VALUES(platform.current_tenant(),$1,platform.current_actor(),$2)
+          ON CONFLICT(tenant_id,demand_id) DO UPDATE SET title=EXCLUDED.title RETURNING id`,
+          [id,current.title]);
+        const caseId=businessCase.rows[0].id;
+        const revision=await one(client,`INSERT INTO m03_demand.case_revision
+          (tenant_id,business_case_id,revision_no,summary,options,assumptions,prepared_by)
+          SELECT platform.current_tenant(),$1,COALESCE(MAX(revision_no),0)+1,$2,$3::jsonb,$4::jsonb,platform.current_actor()
+          FROM m03_demand.case_revision WHERE tenant_id=platform.current_tenant() AND business_case_id=$1 RETURNING *`,
+          [caseId,summary,JSON.stringify(body.options),JSON.stringify(body.assumptions)]);
+        const updated=await one(client,`UPDATE m03_demand.demand SET status='submitted',
+          submitted_at=COALESCE(submitted_at,transaction_timestamp())
+          WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,[id]);
+        return {proposal:updated,revision};
+      }
+      throw new AppError(404,'Unknown proposal action');
+    },{write:true,context});
+  }
   async function workItem(action, body, context, portfolioIds = null, strategyIds = null) {
     return transaction(async client => {
       if (action === 'created') return (await client.query(`SELECT * FROM platform.work_item WHERE tenant_id=platform.current_tenant() AND created_by=platform.current_actor() AND state='open' AND ($1::uuid[] IS NULL OR object_type <> 'portfolio' OR object_id=ANY($1::uuid[])) AND ($2::uuid[] IS NULL OR object_type <> 'strategy' OR object_id=ANY($2::uuid[])) ORDER BY created_at DESC LIMIT 200`,[portfolioIds,strategyIds])).rows;
@@ -463,7 +506,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, close: () => pool.end() };
 }
 
 export function httpError(error) {
