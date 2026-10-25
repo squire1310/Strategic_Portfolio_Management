@@ -23,3 +23,10 @@
 ## Governance concepts to preserve
 
 Recommendation ≠ endorsement ≠ funding approval ≠ baseline effectuation. Formal committee determinations may occur outside the platform and still require reliable capture. Approval conditions precedent must block disallowed commencement. Technical administrators do not automatically gain business approval rights.
+
+## P01 design artefacts (25 October 2026)
+
+- [Investment-to-decision cross-role service blueprint v1.0](investment-decision-service-blueprint-v1.0.md): J02→J03→J05 lanes, transitions, decision gates, alternate paths, authority and exception handling.
+- [Investment-to-decision screen inventory and interaction specification v1.0](investment-decision-screen-interaction-spec-v1.0.md): 14 conceptual screens, role-based information hierarchies, five prototype walkthroughs and user-research checks.
+
+Both are specifications awaiting usability validation; no app or schema changes are authorised.
