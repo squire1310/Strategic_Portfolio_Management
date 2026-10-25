@@ -22,10 +22,10 @@ test('B008 independent assessment and criterion coverage', {skip:!process.env.SP
     VALUES($1,$2,'Test model',$3,'draft',daterange('2026-01-01','2030-01-01','[)')) RETURNING id`,
     [tenantId,'model_'+suffix,assessorId]);
   const modelId=model.rows[0].id;
-  await db.query("UPDATE m04_selection.scoring_model SET status='active' WHERE tenant_id=$1 AND id=$2",[tenantId,modelId]);
   const criterion=await db.query(`INSERT INTO m04_selection.criterion
     (tenant_id,scoring_model_id,code,name,weight,maximum_score,direction)
     VALUES($1,$2,'impact','Impact',1,10,'higher') RETURNING id`,[tenantId,modelId]);
+  await db.query("UPDATE m04_selection.scoring_model SET status='active' WHERE tenant_id=$1 AND id=$2",[tenantId,modelId]);
   await assert.rejects(owner.assessment('create',{demandId:draft.id,scoringModelId:modelId},ownCtx),e=>e instanceof AppError&&e.status===403);
   const assessment=await assessor.assessment('create',{demandId:draft.id,scoringModelId:modelId},ctx);
   await assert.rejects(assessor.assessment('complete',{id:assessment.id,expectedVersion:1,rationale:'Premature'},ctx),e=>e instanceof AppError&&e.status===409);
