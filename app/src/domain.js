@@ -407,6 +407,23 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
+  async function proposalList(context, reviewer = false) {
+    return transaction(async client => {
+      const rows = await client.query(`SELECT d.id,d.code,d.title,d.description,d.status,d.row_version,
+        d.submitted_at,d.submitted_by,
+        (SELECT max(cr.revision_no) FROM m03_demand.business_case bc
+         JOIN m03_demand.case_revision cr ON cr.tenant_id=bc.tenant_id AND cr.business_case_id=bc.id
+         WHERE bc.tenant_id=d.tenant_id AND bc.demand_id=d.id) AS latest_revision,
+        (SELECT ir.feedback FROM m03_demand.intake_review ir
+         WHERE ir.tenant_id=d.tenant_id AND ir.demand_id=d.id
+         ORDER BY ir.reviewed_at DESC LIMIT 1) AS latest_feedback
+        FROM m03_demand.demand d WHERE d.tenant_id=platform.current_tenant()
+        AND (CASE WHEN $1::boolean THEN d.status='submitted' AND d.submitted_by<>platform.current_actor()
+                  ELSE d.submitted_by=platform.current_actor() END)
+        ORDER BY d.created_at DESC LIMIT 200`,[reviewer]);
+      return rows.rows;
+    },{context});
+  }
   async function proposal(action, body, context) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
     return transaction(async client => {
@@ -523,7 +540,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, close: () => pool.end() };
 }
 
 export function httpError(error) {
