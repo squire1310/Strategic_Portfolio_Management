@@ -84,6 +84,18 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         strategyScope = assignments.strategyIds;
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
+      if (req.method === 'GET' && path === '/api/work-items/inbox') {
+        return respond(res,200,await store.workItem('inbox',null,session.context));
+      }
+      if (req.method === 'POST' && path.startsWith('/api/work-items/')) {
+        // Until object-level B005 write policy is complete, prototype-scoped users fail closed.
+        if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped work item writes not yet authorised');
+        if (!['executive','policy','portfolio_manager','engagement_lead'].includes(session.user.role))
+          throw new AppError(403,'Work item permission required');
+        const action=path.slice('/api/work-items/'.length);
+        if (!['create','reassign','complete'].includes(action)) throw new AppError(404,'Unknown work item action');
+        return respond(res,201,await store.workItem(action,await jsonBody(req),session.context));
+      }
       if (req.method === 'GET' && path === '/api/journey-status') {
         const workspace = await store.workspace(session.context, session.user.readKeys, portfolioScope, strategyScope);
         return respond(res, 200, { items: deriveJourneyStatus(workspace) });
