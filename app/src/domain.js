@@ -420,6 +420,43 @@ export function createStore({ connectionString, tenantId, actorId }) {
         candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
     },{context});
   }
+  async function scenarioOverride(action, body, context) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
+    return transaction(async client => {
+      if (action==='request') {
+        const scenarioId=uuid(body.scenarioId,'scenarioId'),assessmentId=uuid(body.assessmentId,'assessmentId');
+        const scenario=await one(client,`SELECT * FROM m04_selection.scenario
+          WHERE tenant_id=platform.current_tenant() AND id=$1`,[scenarioId]);
+        if(scenario.owner_id!==context.actorId) throw new AppError(403,'Scenario owner required');
+        if(scenario.status!=='draft') throw new AppError(409,'Scenario already locked');
+        const assessment=await one(client,`SELECT * FROM m04_selection.assessment
+          WHERE tenant_id=platform.current_tenant() AND id=$1`,[assessmentId]);
+        if(assessment.status!=='completed'||assessment.scoring_model_id!==scenario.scoring_model_id)
+          throw new AppError(409,'Completed compatible assessment required');
+        const evidence=requiredText(body.justification,'justification',2000);
+        if(evidence.length<20) throw new AppError(400,'Detailed justification required');
+        return one(client,`INSERT INTO m04_selection.scenario_override
+          (tenant_id,scenario_id,assessment_id,requested_by,justification)
+          VALUES(platform.current_tenant(),$1,$2,platform.current_actor(),$3) RETURNING *`,
+          [scenarioId,assessmentId,evidence]);
+      }
+      if(action==='decide') {
+        const id=uuid(body.id,'id');
+        const request=await one(client,`SELECT * FROM m04_selection.scenario_override
+          WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
+        if(request.requested_by===context.actorId) throw new AppError(403,'Independent override decider required');
+        if(request.decision!=='pending') throw new AppError(409,'Override already decided');
+        const decision=requiredText(body.decision,'decision',20);
+        if(!['approved','rejected'].includes(decision)) throw new AppError(400,'Unsupported override decision');
+        const reason=requiredText(body.reason,'reason',2000);
+        if(reason.length<20) throw new AppError(400,'Detailed decision reason required');
+        return one(client,`UPDATE m04_selection.scenario_override SET decision=$2,
+          decision_reason=$3,decided_by=platform.current_actor(),decided_at=transaction_timestamp()
+          WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,[id,decision,reason]);
+      }
+      throw new AppError(404,'Unknown override action');
+    },{write:true,context});
+  }
   async function recommendation(action, body, context) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
     return transaction(async client => {
@@ -454,6 +491,10 @@ export function createStore({ connectionString, tenantId, actorId }) {
         let constraintEvaluation;
         try { constraintEvaluation=evaluateScenarioConstraint(scenario.constraint_set,Number(aggregate.rows[0].total),outcome,body.overrideReason); }
         catch(e){throw new AppError(409,e.message);}
+        if(constraintEvaluation.exception) {
+          const approval=await client.query(`SELECT 1 FROM m04_selection.scenario_override WHERE tenant_id=platform.current_tenant() AND scenario_id=$1 AND assessment_id=$2 AND decision='approved'`,[scenarioId,assessmentId]);
+          if(!approval.rowCount) throw new AppError(403,'Independent approved override required');
+        }
         const rationale=requiredText(body.rationale,'rationale',2000)+(constraintEvaluation.exception ? '\nOverride: '+constraintEvaluation.reason : '');
         const inclusion={select:'selected',defer:'considered',reject:'excluded'}[outcome];
         const candidate=await one(client,`INSERT INTO m04_selection.scenario_candidate
@@ -730,7 +771,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, close: () => pool.end() };
 }
 
 export function httpError(error) {
