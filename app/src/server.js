@@ -84,6 +84,10 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         strategyScope = assignments.strategyIds;
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
+      if (req.method === 'GET' && /^\/api\/assessments\/[0-9a-f-]{36}\/results$/.test(path)) {
+        if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped assessment permissions not yet implemented');
+        return respond(res,200,await store.assessmentResults(session.context,path.split('/')[3]));
+      }
       if (req.method === 'POST' && path.startsWith('/api/assessments/')) {
         if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped assessment permissions not yet implemented');
         if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Assessor permission required');
