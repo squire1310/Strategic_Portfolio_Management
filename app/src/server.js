@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createStore, httpError, AppError } from './domain.js';
 import { authFromEnvironment, sessionCookie, expiredSessionCookie } from './auth.js';
-import { canRunCommand } from './permissions.js';
 
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const files = {
@@ -83,7 +82,7 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       if (req.method === 'POST' && path.startsWith('/api/commands/')) {
         const name = path.slice('/api/commands/'.length);
         if (!/^[a-z-]+$/.test(name)) throw new AppError(404, 'Unknown command');
-        if (!canRunCommand(session.user.role, name)) throw new AppError(403, 'Your role cannot change this record');
+        if (!session.user.allowedCommands.includes(name)) throw new AppError(403, 'Your role cannot change this record');
         return respond(res, 201, await store.command(name, await jsonBody(req), session.context));
       }
       throw new AppError(404, 'Not found');
