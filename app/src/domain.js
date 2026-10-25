@@ -338,18 +338,21 @@ export function createStore({ connectionString, tenantId, actorId }) {
     investments: 'm05_investment.investment', memberships: 'm02_portfolio.portfolio_membership',
     alignments: 'm02_portfolio.portfolio_objective'
   };
-  async function workspace(context) {
+  async function workspace(context, readKeys = null) {
     return transaction(async client => {
       const data = {};
       for (const [key, table] of Object.entries(tables)) {
+        if (readKeys !== null && !readKeys.includes(key)) { data[key] = []; continue; }
         data[key] = (await client.query(`SELECT * FROM ${table} WHERE tenant_id=platform.current_tenant() ORDER BY 1,2 LIMIT 500`)).rows;
       }
       return data;
     }, { context });
   }
-  async function history(schema, table, id, context) {
+  async function history(schema, table, id, context, readKeys = null) {
     const full = `${schema}.${table}`;
-    if (!Object.values(tables).includes(full)) throw new AppError(404, 'Unknown entity type');
+    const key = Object.keys(tables).find(k => tables[k] === full);
+    if (!key) throw new AppError(404, 'Unknown entity type');
+    if (readKeys !== null && !readKeys.includes(key)) throw new AppError(404, 'Record not found');
     uuid(id, 'id');
     return transaction(async client => {
       const revisions = (await client.query(`SELECT version_no,lower(recorded_during) AS recorded_at,valid_during,payload,operation,actor_id
