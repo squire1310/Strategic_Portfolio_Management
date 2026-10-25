@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createStore, httpError, AppError } from './domain.js';
 import { authFromEnvironment, sessionCookie, expiredSessionCookie } from './auth.js';
+import { deriveJourneyStatus } from './journey-projections.js';
 
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const files = {
@@ -83,6 +84,10 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         strategyScope = assignments.strategyIds;
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
+      if (req.method === 'GET' && path === '/api/journey-status') {
+        const workspace = await store.workspace(session.context, session.user.readKeys, portfolioScope, strategyScope);
+        return respond(res, 200, { items: deriveJourneyStatus(workspace) });
+      }
       if (req.method === 'GET' && path === '/api/workspace') {
         if (!session.user.allowedCommands.length && session.user.role !== 'viewer') throw new AppError(403, 'Workspace access denied');
         return respond(res, 200, await store.workspace(session.context, session.user.readKeys, portfolioScope, strategyScope));
