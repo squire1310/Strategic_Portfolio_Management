@@ -28,6 +28,7 @@
       <li><a class="govuk-link" href="/policy">Objectives and outcomes</a></li>
       <li><a class="govuk-link" href="/portfolios">Portfolios and categories</a></li>
       <li><a class="govuk-link" href="/investments">Investments and assignments</a></li>
+      <li><a class="govuk-link" href="/proposals">Proposals</a></li>
       <li><a class="govuk-link" href="/inbox">My work items</a></li>
       <li><a class="govuk-link" href="/history">Record history</a></li>
     </ul></nav>
@@ -158,6 +159,18 @@
       <div class="app-listing"><h3 class="govuk-heading-m">Strategic alignments</h3><div id="alignments-list"></div></div>
     </section>
 
+    <section class="app-section" id="proposals" hidden>
+      <h2 class="govuk-heading-l">Investment proposal intake</h2>
+      <form id="proposal-create" class="app-form">
+        <h3 class="govuk-heading-m">New draft proposal</h3>
+        <label class="govuk-label">Code <input class="govuk-input" name="code" required pattern="[a-z][a-z0-9_]+"></label>
+        <label class="govuk-label">Title <input class="govuk-input" name="title" required></label>
+        <label class="govuk-label">Description <textarea class="govuk-textarea" name="description"></textarea></label>
+        <button class="govuk-button">Create draft</button>
+      </form>
+      <h3 class="govuk-heading-m">My proposals</h3><div id="proposal-mine"></div>
+      <h3 class="govuk-heading-m">Awaiting independent review</h3><div id="proposal-review-queue"></div>
+    </section>
     <section class="app-section" id="inbox" hidden>
       <h2 class="govuk-heading-l">My work items</h2>
       <p class="govuk-body">Business workflow tasks assigned to you. Overdue items are flagged below.</p>
