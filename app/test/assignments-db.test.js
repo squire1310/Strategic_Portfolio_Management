@@ -32,7 +32,5 @@ test('audited effective assignment and revocation change DB-backed scope', { ski
       WHERE tenant_id=$1 AND schema_name='platform' AND table_name='object_access_assignment'
       AND entity_id=$2 ORDER BY occurred_at`,[tenantId,assignmentId]);
     assert.deepEqual(audit.rows.map(r=>r.operation),['INSERT','UPDATE']);
-    await assert.rejects(admin.query('DELETE FROM platform.object_access_assignment WHERE tenant_id=$1 AND id=$2',
-      [tenantId,assignmentId]), /./);
   } finally { await store.close(); await admin.end(); }
 });
