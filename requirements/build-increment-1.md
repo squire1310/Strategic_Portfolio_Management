@@ -33,3 +33,6 @@ The first usable path lets a strategy leader define a strategy, objectives, outc
 
 The first slice uses Node.js, a small browser UI and PostgreSQL 16. Synthetic tenants and contributors are provisioned in CI. Interim local-account authentication is implemented. Before an AWS pilot, provision pilot accounts, complete browser/accessibility review, verify the account-specific cost estimate and billing alerts, choose a temporary HTTPS hostname, and agree the pilot's operating owner. These are engineering decisions, not additional domain-policy approvals.
 
+## Subsequent implementation planning (25 October 2026)
+
+The [implementation backlog v1.0](implementation-backlog-v1.0.md) outlines follow-on work packages B001–B022 with approved C01–C08 architectural direction, dependencies and gated milestones. This is a *proposed plan*, not an amendment to the authorised Increment 1 US-001–US-004 scope.
