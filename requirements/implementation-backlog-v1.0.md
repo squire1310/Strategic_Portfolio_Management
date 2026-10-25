@@ -323,3 +323,7 @@ An item is ready only if: accountable engineering owner allocated; source decisi
 ## Detailed M0/M1 increment specification
 
 [Build Increment 2 — Identity and Authorisation Foundation](build-increment-2-identity-foundation.md) defines the sequenced M0 baseline verification and M1 Entra-compatible synthetic identity, group mapping, scoped command authorisation and 16 acceptance tests. It is a proposed engineering scope; it does not supersede US-001–US-004 or authorise code/migrations.
+
+## ServiceNow production access fulfilment (25 October 2026)
+
+Production access requests and their administration will use the organisation's **ServiceNow catalogue**. Entra ID remains the authentication and security-group source, while SPM enforces effective permissions and its own scoped assignments. Do **not** implement an SPM production access-request portal. Confirm with IAM whether ServiceNow fulfilment updates only Entra groups, also calls an SPM scoped-assignment provisioning API, or follows a controlled manual process. Preserve synthetic fixture provisioning for prototype tests. See [identity architecture and ServiceNow division of responsibilities](../docs/entra-identity-access-prototype-design-v1.0.md). A catalogue approval is **not** delegated investment approval authority.
