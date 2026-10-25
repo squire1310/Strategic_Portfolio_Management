@@ -421,6 +421,43 @@ export function createStore({ connectionString, tenantId, actorId }) {
         candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
     },{context});
   }
+  async function recordInvestmentDecision(body,context) {
+    if(!body || typeof body!=='object'||Array.isArray(body)) throw new AppError(400,'Decision details required');
+    const sessionId=uuid(body.sessionId,'sessionId');
+    const decisionType=requiredText(body.decisionType,'decisionType',20);
+    if(!['defer','reject'].includes(decisionType))
+      throw new AppError(403,'Approval and effectuation require a separate governed command');
+    const rationale=requiredText(body.rationale,'rationale',2000);
+    return transaction(async client=>{
+      const session=await one(client,`SELECT s.*,f.evidence_snapshot,b.chair_id FROM m06_governance.committee_session s
+        JOIN m06_governance.committee_finalisation f ON f.tenant_id=s.tenant_id AND f.session_id=s.id
+        JOIN m06_governance.decision_body b ON b.tenant_id=s.tenant_id AND b.id=s.decision_body_id
+        WHERE s.tenant_id=platform.current_tenant() AND s.id=$1 FOR UPDATE OF s`,[sessionId]);
+      if(session.evidence_snapshot?.summary?.quorumMet!==true) throw new AppError(409,'Finalised quorum required');
+      const ballot=session.evidence_snapshot.summary;
+      if(ballot.forVotes<=ballot.against) throw new AppError(409,'Recorded vote does not support a positive decision');
+      const delegated=await client.query(`SELECT 1 FROM m06_governance.delegation
+        WHERE tenant_id=platform.current_tenant() AND decision_body_id=$1 AND delegate_id=platform.current_actor()
+        AND scope_code IN ('investment','all') AND effective_during @> $2::timestamptz`,
+        [session.decision_body_id,session.held_at]);
+      if(session.chair_id!==context.actorId && !delegated.rowCount) throw new AppError(403,'Effective investment decision authority required');
+      const investment=await one(client,`SELECT * FROM m05_investment.investment
+        WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[session.investment_id]);
+      if([investment.owner_id,investment.sponsor_id].includes(context.actorId))
+        throw new AppError(403,'Decision maker cannot be investment owner or sponsor');
+      if(investment.lifecycle!=='candidate') throw new AppError(409,'Candidate investment required');
+      const decision=await one(client,`INSERT INTO m05_investment.investment_decision
+        (tenant_id,decision_body_id,decided_by,investment_id,subject_type,subject_id,decision_type,
+        rationale,decided_at,effective_on)
+        VALUES(platform.current_tenant(),$1,platform.current_actor(),$2,'investment',$2,$3,$4,
+        transaction_timestamp(),CURRENT_DATE) RETURNING *`,
+        [session.decision_body_id,investment.id,decisionType,rationale]);
+      await client.query(`INSERT INTO m05_investment.committee_decision_evidence
+        (tenant_id,session_id,decision_id) VALUES(platform.current_tenant(),$1,$2)`,
+        [sessionId,decision.id]);
+      return {decision,investmentLifecycle:investment.lifecycle,effectuated:false};
+    },{write:true,context});
+  }
   async function committeeDecisionReadiness(context, sessionId) {
     uuid(sessionId,'sessionId');
     return transaction(async client => {
@@ -862,7 +899,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, recordInvestmentDecision, close: () => pool.end() };
 }
 
 export function httpError(error) {
