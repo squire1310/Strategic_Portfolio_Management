@@ -274,3 +274,7 @@ Error identifiers are **proposed interface design codes**, not guaranteed curren
 ## 9. Recommended design review and next step
 
 Review the canonical states and unresolved R01–R12 with product, portfolio governance, assurance and engineering. Keep this document **proposed** until accepted; approved D01–D10 continue to control precedence. Next produce a **lifecycle-to-canonical-model gap assessment and versioned transition contracts**, then decide whether any changes to the existing database/application are justified. No code or migration work is authorised here.
+
+## Lifecycle-to-canonical-model gap assessment (25 October 2026)
+
+[Gap Analysis v1.0](lifecycle-canonical-data-model-gap-analysis-v1.0.md) compares the proposed lifecycle transitions with canonical model v1.1 and reconciled-core migrations V001–V008. It identifies 22 severity-ranked gaps, existing V006 safeguards, the unverified execution status of V008 and the required architecture/product decisions before any migrations. This is an assessment only; no implementation work is authorised.
