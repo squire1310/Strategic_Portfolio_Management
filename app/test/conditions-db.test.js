@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import pg from 'pg';
-import {createStore} from '../src/domain.js';
+import {createStore,AppError} from '../src/domain.js';
 test('B012 outstanding precedent blocks readiness and evidence does not effectuate', {skip:!process.env.SPM_TEST_DATABASE_URL},async()=>{
  const tenant='00000000-0000-4000-8000-000000000001';
  const actor='00000000-0000-4000-8000-000000000101';
@@ -30,9 +30,19 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   let result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,1);
   assert.equal(result.commitmentReady,false);
-  await admin.query(`INSERT INTO m05_investment.condition_verification
+  await assert.rejects(store.verifyDecisionCondition({conditionId:condition.rows[0].id,result:'satisfied',evidenceReference:'synthetic:unauthorised'}, {tenantId:tenant,actorId:actor}),e=>e instanceof AppError&&e.status===403);
+  await admin.query(`INSERT INTO m05_investment.condition_verifier_mandate
+    (tenant_id,principal_id,granted_by,effective_during,reason)
+    VALUES($1,$2,$3,tstzrange(now()-interval '1 hour',now()+interval '1 day','[)'),$4)`,
+    [tenant,actor,approver,'Test mandate for independent condition evidence verification']);
+  const evidence=await store.verifyDecisionCondition({conditionId:condition.rows[0].id,
+    result:'satisfied',evidenceReference:'synthetic:independent-proof'}, {tenantId:tenant,actorId:actor});
+  assert.equal(evidence.result,'satisfied');
+  /* Previously fixture inserted directly; now verify via governed service. */
+  /* await admin.query(`INSERT INTO m05_investment.condition_verification
     (tenant_id,condition_id,verified_by,result,evidence_reference)
     VALUES($1,$2,$3,'satisfied','synthetic:test-evidence')`,[tenant,condition.rows[0].id,actor]);
+  */
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,0);
   assert.equal(result.precedentClearance,true);
