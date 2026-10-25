@@ -6,6 +6,7 @@ import {createStore} from '../src/domain.js';
 test('B012 outstanding precedent blocks readiness and evidence does not effectuate', {skip:!process.env.SPM_TEST_DATABASE_URL},async()=>{
  const tenant='00000000-0000-4000-8000-000000000001';
  const actor='00000000-0000-4000-8000-000000000101';
+ const approver=randomUUID();
  const admin=new pg.Client();await admin.connect();
  await admin.query('BEGIN');
  await admin.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true),set_config('app.request_id',$3,true)",[tenant,actor,randomUUID()]);
