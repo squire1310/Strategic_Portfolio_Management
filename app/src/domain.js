@@ -1,4 +1,5 @@
 import pg from 'pg';
+import {evaluateDecisionConditions} from './condition-clearance.js';
 import {evaluateCommitteeQuorum} from './committee-quorum.js';
 import {validateScenarioConstraints,evaluateScenarioConstraint,rankScenarioCandidates} from './scenario-constraints.js';
 import { randomUUID } from 'node:crypto';
@@ -431,12 +432,8 @@ export function createStore({ connectionString, tenantId, actorId }) {
         LEFT JOIN LATERAL (SELECT result,verified_at FROM m05_investment.condition_verification
           WHERE tenant_id=c.tenant_id AND condition_id=c.id ORDER BY verified_at DESC,id DESC LIMIT 1) v ON true
         WHERE c.tenant_id=platform.current_tenant() AND c.decision_id=$1 ORDER BY c.id`,[decisionId])).rows;
-      const unmet=type=>conditions.filter(c=>c.condition_type===type&&c.verification_result!=='satisfied').length;
-      const outstandingPrecedents=unmet('precedent');
-      return {decisionId,decisionType:decision.decision_type,conditions,outstandingPrecedents,
-        outstandingSubsequents:unmet('subsequent'),precedentClearance:outstandingPrecedents===0,
-        commitmentReady:false,
-        effectuationPerformed:false};
+      return {decisionId,decisionType:decision.decision_type,conditions,
+        ...evaluateDecisionConditions(decision.decision_type,conditions)};
     },{context});
   }
   async function recordInvestmentDecision(body,context) {
