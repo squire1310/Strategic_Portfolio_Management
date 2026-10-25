@@ -20,10 +20,17 @@ export function createGroupResolver(groupMappings = {}) {
       throw new Error('Invalid group membership');
     }
     const bundles = [...new Set(groupIds.flatMap(id => mapping.get(id.toLowerCase()) || []))];
-    return { bundles, commands: [...new Set(bundles.flatMap(commandsForRole))] };
+    return { bundles, commands: [...new Set(bundles.flatMap(commandsForRole))],
+      readKeys: [...new Set(bundles.flatMap(bundle => READ_BUNDLES[bundle] || []))] };
   };
 }
 
+const STRATEGY_READS = Object.freeze(['strategies', 'objectives', 'outcomes', 'measures', 'observations']);
+const PORTFOLIO_READS = Object.freeze(['portfolios', 'categories', 'investments', 'memberships', 'alignments']);
+const READ_BUNDLES = Object.freeze({
+  executive: STRATEGY_READS, policy: STRATEGY_READS, portfolio_manager: PORTFOLIO_READS,
+  engagement_lead: PORTFOLIO_READS, viewer: [...STRATEGY_READS, ...PORTFOLIO_READS]
+});
 const ROLE_BUNDLES = Object.freeze({
   executive: true, policy: true, portfolio_manager: true,
   engagement_lead: true, viewer: true
