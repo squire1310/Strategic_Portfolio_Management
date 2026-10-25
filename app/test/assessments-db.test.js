@@ -56,6 +56,13 @@ test('B008 independent assessment and criterion coverage', {skip:!process.env.SP
   await assert.rejects(assessor.scenarioOverride('decide',{
     id:request.id,decision:'approved',reason:'Independent governance review passed'},ctx),
     e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(owner.scenarioOverride('decide',{
+    id:request.id,decision:'approved',reason:'Independent governance review passed'},ownCtx),
+    e=>e instanceof AppError&&e.status===403);
+  await db.query(`INSERT INTO m04_selection.override_mandate
+    (tenant_id,principal_id,effective_during,granted_by,reason)
+    VALUES($1,$2,tstzrange(now()-interval '1 hour',now()+interval '1 day','[)'),$3,$4)`,
+    [tenantId,ownerId,assessorId,'Explicit test mandate for independent override authority']);
   const approved=await owner.scenarioOverride('decide',{
     id:request.id,decision:'approved',reason:'Independent governance review passed'},ownCtx);
   assert.equal(approved.decision,'approved');
