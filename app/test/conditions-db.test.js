@@ -7,6 +7,8 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
  const tenant='00000000-0000-4000-8000-000000000001';
  const actor='00000000-0000-4000-8000-000000000101';
  const admin=new pg.Client();await admin.connect();
+ await admin.query('BEGIN');
+ await admin.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true),set_config('app.request_id',$3,true)",[tenant,actor,randomUUID()]);
  const store=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId:tenant,actorId:actor});
  try {
   const suffix=randomUUID().slice(0,8);
@@ -31,5 +33,5 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.equal(result.precedentClearance,true);
   assert.equal(result.commitmentReady,false);
   assert.equal(result.effectuationPerformed,false);
- } finally {await store.close();await admin.end();}
+ } finally {await admin.query('ROLLBACK');await store.close();await admin.end();}
 });
