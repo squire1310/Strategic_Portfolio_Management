@@ -316,7 +316,7 @@ async function loadInbox() {
   if (!response.ok) throw new Error(items.error || 'Could not load work items');
   if (!items.length) {
     const p = document.createElement('p'); p.className='govuk-body';
-    p.textContent='No work items are currently assigned to you.'; container.append(p); return;
+    p.textContent='No work items are currently assigned to you.'; container.append(p); await loadCreatedTasks(); return;
   }
   const table = document.createElement('table'); table.className='govuk-table';
   const head = document.createElement('thead');
