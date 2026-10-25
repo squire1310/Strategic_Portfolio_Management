@@ -265,17 +265,67 @@ async function load() {
     page.querySelector('[data-read-only-notice]').hidden = user.role === config.role;
   }
   document.getElementById('history').hidden = window.location.pathname !== '/history';
+  document.getElementById('inbox').hidden = window.location.pathname !== '/inbox';
   for (const form of document.querySelectorAll('form[data-command]')) form.hidden = !user.allowedCommands.includes(form.dataset.command);
   const response = await fetch('/api/workspace');
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || 'Could not load records');
   workspace = payload;
   render();
+  if (window.location.pathname === '/inbox') await loadInbox();
   if (window.location.pathname === '/history') {
     const params = new URLSearchParams(window.location.search);
     if (entityTypes[params.get('type')] && params.get('id')) await viewHistory(params.get('type'), params.get('id'));
   } else if (window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
 }
+
+async function loadInbox() {
+  const container = document.getElementById('work-items-list');
+  container.replaceChildren();
+  const response = await fetch('/api/work-items/inbox');
+  const items = await response.json();
+  if (!response.ok) throw new Error(items.error || 'Could not load work items');
+  if (!items.length) {
+    const p = document.createElement('p'); p.className='govuk-body';
+    p.textContent='No work items are currently assigned to you.'; container.append(p); return;
+  }
+  const table = document.createElement('table'); table.className='govuk-table';
+  const head = document.createElement('thead');
+  const tr = document.createElement('tr');
+  for (const text of ['Task','Business object','Due date','Status','Action']) {
+    const th=document.createElement('th'); th.scope='col'; th.className='govuk-table__header'; th.textContent=text; tr.append(th);
+  }
+  head.append(tr); table.append(head);
+  const body=document.createElement('tbody');
+  const today = new Date().toISOString().slice(0,10);
+  for (const item of items) {
+    const line=document.createElement('tr'); line.className='govuk-table__row';
+    const overdue=item.state==='open' && item.due_on && item.due_on.slice(0,10)<today;
+    for (const value of [item.title, item.object_type + ' · ' + item.object_id,
+      item.due_on?.slice(0,10) || 'No due date', overdue ? 'Overdue' : item.state]) {
+      const td=document.createElement('td'); td.className='govuk-table__cell'; td.textContent=value; line.append(td);
+    }
+    const cell=document.createElement('td'); cell.className='govuk-table__cell';
+    if(item.state==='open') {
+      const button=document.createElement('button'); button.type='button'; button.className='govuk-button govuk-button--secondary';
+      button.textContent='Complete';
+      button.addEventListener('click',async()=>{
+        const note=window.prompt('Completion note (required)');
+        if (!note?.trim()) return;
+        try {
+          const response=await fetch('/api/work-items/complete',{method:'POST',headers:{'content-type':'application/json'},
+            body:JSON.stringify({id:item.id,expectedVersion:item.row_version,note})});
+          const result=await response.json(); if(!response.ok) throw new Error(result.error || 'Unable to complete');
+          show('Work item completed.'); await loadInbox();
+        }catch(error){show(error.message,'error');}
+      });
+      cell.append(button);
+    } else cell.textContent='—';
+    line.append(cell);body.append(line);
+  }
+  table.append(body); container.append(table);
+}
+
 async function viewHistory(key, id) {
   try {
     const [schema, table] = entityTypes[key];
