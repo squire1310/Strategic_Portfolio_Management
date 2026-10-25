@@ -89,6 +89,11 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Scenario permission required');
         return respond(res,200,await store.scenarioRanking(session.context,path.split('/')[3]));
       }
+      if(req.method==='GET' && /^\/api\/investment-decisions\/[0-9a-f-]{36}\/conditions$/.test(path)) {
+        if(portfolioScope!==null||strategyScope!==null) throw new AppError(403,'Scoped condition access not configured');
+        if(!session.user.allowedCommands.includes('strategy-update')) throw new AppError(403,'Decision condition permission required');
+        return respond(res,200,await store.decisionConditionReadiness(session.context,path.split('/')[3]));
+      }
       if(req.method==='POST' && path==='/api/investment-decisions/record') {
         if(portfolioScope!==null||strategyScope!==null) throw new AppError(403,'Scoped decision authority not configured');
         if(!session.user.allowedCommands.includes('strategy-update')) throw new AppError(403,'Decision authority permission required');
