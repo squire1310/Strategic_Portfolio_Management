@@ -462,6 +462,18 @@ export function createStore({ connectionString, tenantId, actorId }) {
         const updated=await one(client,`UPDATE m03_demand.demand SET status='submitted',
           submitted_at=COALESCE(submitted_at,transaction_timestamp())
           WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,[id]);
+        if (body.reviewerId != null) {
+          const reviewerId=uuid(body.reviewerId,'reviewerId');
+          if (reviewerId===context.actorId) throw new AppError(403,'Independent reviewer required');
+          await one(client,`INSERT INTO platform.work_item
+            (tenant_id,object_type,object_id,title,assignee_id,created_by,workflow_kind,case_revision_id)
+            VALUES(platform.current_tenant(),'demand',$1,$2,$3,platform.current_actor(),'proposal_review',$4) RETURNING *`,
+            [id,'Review proposal: '+current.title,reviewerId,revision.id]);
+        }
+        await client.query(`UPDATE platform.work_item SET state='completed',completed_at=transaction_timestamp(),
+          completion_note='Proposal resubmitted' WHERE tenant_id=platform.current_tenant()
+          AND object_type='demand' AND object_id=$1 AND workflow_kind='proposal_correction' AND state='open'
+          AND assignee_id=platform.current_actor()`,[id]);
         return {proposal:updated,revision};
       }
       if(action === 'review') {
@@ -476,6 +488,18 @@ export function createStore({ connectionString, tenantId, actorId }) {
           (tenant_id,demand_id,case_revision_id,reviewer_id,outcome,feedback)
           VALUES(platform.current_tenant(),$1,$2,platform.current_actor(),$3,$4) RETURNING *`,
           [id,revision.id,outcome,requiredText(body.feedback,'feedback',2000)]);
+        const pending=await client.query(`UPDATE platform.work_item SET state='completed',
+          completed_at=transaction_timestamp(),completion_note='Intake review recorded'
+          WHERE tenant_id=platform.current_tenant() AND workflow_kind='proposal_review'
+            AND case_revision_id=$1 AND assignee_id=platform.current_actor() AND state='open'
+          RETURNING id`,[revision.id]);
+        if (body.requireAssignedTask===true && !pending.rowCount) throw new AppError(403,'Assigned review task required');
+        if(outcome==='return_for_correction') {
+          await one(client,`INSERT INTO platform.work_item
+            (tenant_id,object_type,object_id,title,assignee_id,created_by,workflow_kind)
+            VALUES(platform.current_tenant(),'demand',$1,$2,$3,platform.current_actor(),'proposal_correction')
+            RETURNING *`,[id,'Correct proposal: '+current.title,current.submitted_by]);
+        }
         const next=outcome==='return_for_correction'?'draft':'triage';
         const updated=await one(client,`UPDATE m03_demand.demand SET status=$2
           WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,[id,next]);
@@ -513,6 +537,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const row = await one(client,`SELECT * FROM platform.work_item WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
       const scope = row.object_type === 'strategy' ? strategyIds : portfolioIds;
       if (scope !== null && !scope.includes(row.object_id)) throw new AppError(404,'Work item not found');
+      if (row.workflow_kind !== 'manual') throw new AppError(403,'Workflow task requires originating domain transition');
       if (row.state !== 'open' || row.row_version !== expected) throw new AppError(409,'Work item closed or stale');
       if (action === 'reassign') {
         if (row.created_by !== context.actorId) throw new AppError(403,'Only creator may reassign');
