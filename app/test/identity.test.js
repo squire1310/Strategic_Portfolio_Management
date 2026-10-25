@@ -61,3 +61,26 @@ test('server never trusts client claimed role or group for command access', asyn
     assert.deepEqual(actions, ['objective']);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('revoking synthetic groups denies workspace and commands on an existing session', async () => {
+  const actions = [];
+  const store = { workspace: async () => ({ visible: true }), command: async name => { actions.push(name); return { name }; } };
+  const auth = createAuth([account], { groupMappings: mappings, requireGroups: true });
+  const server = createHttpServer(store, { auth });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    const login = await fetch(origin + '/api/login', { method: 'POST',
+      headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ username: account.username, password }) });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    assert.equal((await fetch(origin + '/api/workspace', { headers: { cookie } })).status, 200);
+    auth.updatePrototypeGroups(account.username, [UNKNOWN]);
+    assert.equal((await fetch(origin + '/api/workspace', { headers: { cookie } })).status, 403);
+    assert.equal((await fetch(origin + '/api/commands/objective', { method: 'POST',
+      headers: { cookie, origin, 'content-type': 'application/json' }, body: '{}' })).status, 403);
+    assert.deepEqual(actions, []);
+    auth.updatePrototypeGroups(account.username, [GROUP]);
+    assert.equal((await fetch(origin + '/api/workspace', { headers: { cookie } })).status, 200);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
