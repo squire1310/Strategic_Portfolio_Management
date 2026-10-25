@@ -44,3 +44,19 @@ The candidate investment command creates **identity only** for US-003 membership
 `pnpm test` always runs login and UI asset tests. It also runs the HTTP/database integration suite when `SPM_TEST_DATABASE_URL` points to a disposable, migrated database with `app/test/seed.sql` applied. Without that variable, only the database suite is skipped. The [CI workflow](../.github/workflows/validate-increment-1.yml) runs it against PostgreSQL 16 under a non-owner login.
 
 This slice still needs production identity and account provisioning, recovery procedures, finer permissions, upload/source contracts, accessibility review, performance checks, and the production security/recovery controls in the [requirements](../requirements/build-increment-1.md). The M06 risk entities in canonical model v1.1 remain outside Increment 1.
+
+## Increment 2 identity foundation — partial implementation
+
+The initial identity-provider seam is now in `src/identity.js`. The existing local password/session provider remains available in `SPM_IDENTITY_PROVIDER=local` mode for development compatibility. `SPM_IDENTITY_PROVIDER=prototype` requires each synthetic local account to include nonempty `groupIds` of UUIDs. Configure `SPM_GROUP_MAPPINGS_JSON` as a JSON object mapping **synthetic group UUIDs** to existing permission-bundle names (`executive`, `policy`, `portfolio_manager`, `engagement_lead`, `viewer`). Commands are checked against resolved session permissions, not the display role.
+
+For example, in an isolated synthetic environment, configure:
+
+```sh
+export SPM_DEPLOYMENT_ENV=test
+export SPM_IDENTITY_PROVIDER=prototype
+export SPM_GROUP_MAPPINGS_JSON='{"00000000-0000-4000-8000-000000000501":["policy"]}'
+```
+
+Add `"groupIds":["00000000-0000-4000-8000-000000000501"]` to a **test-only** user in `SPM_LOCAL_USERS_JSON`. Do not place passwords or real Entra IDs in version control. Any unmapped group grants no commands. This is **not a real Entra integration**; choosing `SPM_IDENTITY_PROVIDER=entra` fails closed until OIDC verification is implemented. `SPM_DEPLOYMENT_ENV=production` rejects local/prototype authentication. Set production mode explicitly for any production build/deployment, rather than relying on the default development mode.
+
+**Known limits:** The current prototype keeps existing password-based synthetic login, local in-memory sessions and broad legacy workspace read behaviour. Fine-grained read scopes, real Entra claims/overage handling, membership expiry/revocation, durable SPM group mappings, impersonation-resistant identity provisioning and complete command isolation remain open work. **Do not expose this prototype to real or sensitive data** and do not treat these initial changes as completion of M1 or approval controls. See [Build Increment 2](../requirements/build-increment-2-identity-foundation.md).
