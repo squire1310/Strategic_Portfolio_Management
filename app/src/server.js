@@ -14,7 +14,7 @@ const files = {
   '/login.js': ['login.js', 'text/javascript; charset=utf-8'],
   '/govuk.css': ['govuk.css', 'text/css; charset=utf-8']
 };
-const workspacePages = new Set(['/', '/strategy', '/policy', '/portfolios', '/investments', '/history']);
+const workspacePages = new Set(['/', '/strategy', '/policy', '/portfolios', '/investments', '/history', '/inbox']);
 
 function respond(res, status, body, contentType = 'application/json; charset=utf-8', extraHeaders = {}) {
   res.writeHead(status, {
