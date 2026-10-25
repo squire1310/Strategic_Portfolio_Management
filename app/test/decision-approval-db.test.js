@@ -79,6 +79,24 @@ test('B011 approved decision freezes evidence and conditions without effectuatio
       (SELECT count(*)::int FROM m05_investment.committee_decision_evidence WHERE tenant_id=$1 AND decision_id=$3) AS links`,
       [tenantId,promoted.investment.id,approved.decision.id]);
     assert.deepEqual(result.rows[0],{commitments:0,links:1});
+    const direct=new pg.Client({connectionString:process.env.SPM_TEST_DATABASE_URL});
+    await direct.connect();
+    try{
+      await direct.query('BEGIN');
+      await direct.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true)",
+        [tenantId,chairId]);
+      await direct.query(`INSERT INTO m05_investment.investment_decision
+        (tenant_id,decision_body_id,decided_by,investment_id,subject_type,subject_id,
+         decision_type,rationale,decided_at,effective_on,recommendation_id,approval_amount,approval_currency)
+        VALUES($1,$2,$3,$4,'investment',$4,'approve','Unlinked direct insert',now(),CURRENT_DATE,
+          $5,50000,'GBP')`,[tenantId,body.id,chairId,promoted.investment.id,recommendation.id]);
+      await assert.rejects(direct.query('COMMIT'),/Application decision requires finalised committee evidence/);
+      await direct.query('ROLLBACK');
+      await assert.rejects(direct.query(`INSERT INTO m06_governance.delegation
+        (tenant_id,decision_body_id,delegate_id,scope_code,effective_during)
+        VALUES($1,$2,$3,'investment',tstzrange(now(),now()+interval '1 day','[)'))`,
+        [tenantId,body.id,chairId]),/permission denied/);
+    }finally{await direct.end();}
     const expiredDelegateId=randomUUID();
     await db.query('INSERT INTO platform.principal(principal_id,subject,display_name) VALUES($1,$2,$3)',
       [expiredDelegateId,'test:expired-approver-'+expiredDelegateId,'Expired delegate']);
