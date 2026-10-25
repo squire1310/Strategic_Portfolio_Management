@@ -179,3 +179,7 @@ For later M3, independently test D04 delegation, approval amount/currency and co
 Before beginning implementation: agree the M1 group-mapping preference and fixture semantics; assign module/security owners; inspect existing app routes and database RLS/grants; choose persistence migrations using forward-only design; define token/session contract and environment enforcement; create test cases in CI; record acceptance of this increment's scope.
 
 **Planning output:** M0 and M1 are now decomposed sufficiently for technical estimation and implementation sequencing. This specification alone does not modify runtime infrastructure, code, security groups, SQL or credentials.
+
+## ServiceNow production access fulfilment (25 October 2026)
+
+Production access requests and their administration will use the organisation's **ServiceNow catalogue**. Entra ID remains the authentication and security-group source, while SPM enforces effective permissions and its own scoped assignments. Do **not** implement an SPM production access-request portal. Confirm with IAM whether ServiceNow fulfilment updates only Entra groups, also calls an SPM scoped-assignment provisioning API, or follows a controlled manual process. Preserve synthetic fixture provisioning for prototype tests. See [identity architecture and ServiceNow division of responsibilities](../docs/entra-identity-access-prototype-design-v1.0.md). A catalogue approval is **not** delegated investment approval authority.
