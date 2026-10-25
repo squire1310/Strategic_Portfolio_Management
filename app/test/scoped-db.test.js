@@ -41,3 +41,25 @@ test('PostgreSQL portfolio-scoped writes, workspace and history', { skip: !proce
     assert.equal(unscoped.portfolios.find(p => p.id === other.id).name, 'Other portfolio');
   } finally { await store.close(); }
 });
+
+test('PostgreSQL strategy scope protects descendant reads, history and unguarded writes', { skip: !process.env.SPM_TEST_DATABASE_URL }, async () => {
+  const store = createStore({ connectionString: process.env.SPM_TEST_DATABASE_URL, tenantId, actorId });
+  const suffix = randomUUID().slice(0, 8);
+  const context = { tenantId, actorId };
+  try {
+    const allowed = await store.command('strategy', { code: 'scope_s_' + suffix, name: 'Allowed strategy', startDate: '2026-01-01', endDate: '2030-01-01' });
+    const denied = await store.command('strategy', { code: 'scope_t_' + suffix, name: 'Other strategy', startDate: '2026-01-01', endDate: '2030-01-01' });
+    const objective = await store.command('objective', { strategyId: allowed.id, code: 'scope_o_' + suffix, title: 'Objective', validFrom: '2026-01-01', validUntil: '2030-01-01' });
+    const result = await store.workspace(context, ['strategies','objectives','outcomes','measures','observations'], null, [allowed.id]);
+    assert.ok(result.strategies.some(s => s.id === allowed.id));
+    assert.ok(!result.strategies.some(s => s.id === denied.id));
+    assert.ok(result.objectives.some(o => o.id === objective.id));
+    const history = await store.history('m01_strategy','strategy',allowed.id,context,['strategies'],null,[allowed.id]);
+    assert.ok(history.revisions.length >= 1);
+    await assert.rejects(store.history('m01_strategy','strategy',denied.id,context,['strategies'],null,[allowed.id]),
+      e => e instanceof AppError && e.status === 404);
+    await assert.rejects(store.command('strategy-update',
+      { id: denied.id, expectedVersion: denied.row_version, name: 'Illegal' },context,null,[allowed.id]),
+      e => e instanceof AppError && e.status === 403);
+  } finally { await store.close(); }
+});
