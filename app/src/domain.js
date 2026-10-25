@@ -77,9 +77,23 @@ export function createStore({ connectionString, tenantId, actorId }) {
     } finally { client.release(); }
   }
 
-  async function command(name, body, context) {
+  async function command(name, body, context, portfolioIds = null) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400, 'JSON object required');
     return transaction(async client => {
+      if (portfolioIds !== null) {
+        const allowed = new Set(['portfolio-update','portfolio-retire','membership','membership-update','membership-remove','alignment','alignment-remove','investment-update']);
+        if (!allowed.has(name)) throw new AppError(403, 'Scoped command not supported');
+        let portfolioId = body.portfolioId;
+        if (['portfolio-update','portfolio-retire'].includes(name)) portfolioId = body.id;
+        if (['membership-update','membership-remove'].includes(name)) {
+          const row = await client.query('SELECT portfolio_id FROM m02_portfolio.portfolio_membership WHERE tenant_id=platform.current_tenant() AND id=$1', [uuid(body.id,'id')]);
+          portfolioId = row.rows[0]?.portfolio_id;
+        }
+        if (name === 'investment-update') {
+          const rows = await client.query('SELECT portfolio_id FROM m02_portfolio.portfolio_membership WHERE tenant_id=platform.current_tenant() AND investment_id=$1', [uuid(body.id,'id')]);
+          if (!rows.rowCount || rows.rows.some(r => !portfolioIds.includes(r.portfolio_id))) throw new AppError(403, 'Investment scope denied');
+        } else if (!portfolioId || !portfolioIds.includes(portfolioId)) throw new AppError(403, 'Portfolio scope denied');
+      }
       switch (name) {
         case 'strategy': {
           const [a, b] = interval(body.startDate, body.endDate);
