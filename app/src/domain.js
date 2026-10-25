@@ -432,7 +432,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const session=await one(client,`SELECT s.*,f.evidence_snapshot,b.chair_id FROM m06_governance.committee_session s
         JOIN m06_governance.committee_finalisation f ON f.tenant_id=s.tenant_id AND f.session_id=s.id
         JOIN m06_governance.decision_body b ON b.tenant_id=s.tenant_id AND b.id=s.decision_body_id
-        WHERE s.tenant_id=platform.current_tenant() AND s.id=$1 FOR UPDATE OF s`,[sessionId]);
+        WHERE s.tenant_id=platform.current_tenant() AND s.id=$1`,[sessionId]);
       if(session.evidence_snapshot?.summary?.quorumMet!==true) throw new AppError(409,'Finalised quorum required');
       const ballot=session.evidence_snapshot.summary;
       if(ballot.forVotes<=ballot.against) throw new AppError(409,'Recorded vote does not support a positive decision');
