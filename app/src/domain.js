@@ -421,6 +421,24 @@ export function createStore({ connectionString, tenantId, actorId }) {
         candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
     },{context});
   }
+  async function decisionConditionReadiness(context, decisionId) {
+    uuid(decisionId,'decisionId');
+    return transaction(async client => {
+      const decision=await one(client,`SELECT decision_type FROM m05_investment.investment_decision
+        WHERE tenant_id=platform.current_tenant() AND id=$1`,[decisionId]);
+      const conditions=(await client.query(`SELECT c.id,c.condition_type,c.description,c.due_on,
+        v.result AS verification_result,v.verified_at FROM m05_investment.decision_condition c
+        LEFT JOIN LATERAL (SELECT result,verified_at FROM m05_investment.condition_verification
+          WHERE tenant_id=c.tenant_id AND condition_id=c.id ORDER BY verified_at DESC,id DESC LIMIT 1) v ON true
+        WHERE c.tenant_id=platform.current_tenant() AND c.decision_id=$1 ORDER BY c.id`,[decisionId])).rows;
+      const unmet=type=>conditions.filter(c=>c.condition_type===type&&c.verification_result!=='satisfied').length;
+      const outstandingPrecedents=unmet('precedent');
+      return {decisionId,decisionType:decision.decision_type,conditions,outstandingPrecedents,
+        outstandingSubsequents:unmet('subsequent'),precedentClearance:outstandingPrecedents===0,
+        commitmentReady:decision.decision_type==='approve'&&outstandingPrecedents===0,
+        effectuationPerformed:false};
+    },{context});
+  }
   async function recordInvestmentDecision(body,context) {
     if(!body || typeof body!=='object'||Array.isArray(body)) throw new AppError(400,'Decision details required');
     const sessionId=uuid(body.sessionId,'sessionId');
@@ -899,7 +917,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, recordInvestmentDecision, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, recordInvestmentDecision, decisionConditionReadiness, close: () => pool.end() };
 }
 
 export function httpError(error) {
