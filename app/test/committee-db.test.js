@@ -37,6 +37,8 @@ test('B010 committee evaluation uses effective delegates and excludes recusals',
   const readiness=await store.committeeDecisionReadiness({tenantId:tenant,actorId:chair},finalised.session.id);
   assert.equal(readiness.status,'evidence_ready_only');
   assert.equal(readiness.approvalGranted,false);
+  await assert.rejects(store.recordInvestmentDecision({sessionId:finalised.session.id,decisionType:'approve',rationale:'Unverified approval'}, {tenantId:tenant,actorId:chair}),e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(store.recordInvestmentDecision({sessionId:finalised.session.id,decisionType:'defer',rationale:'Insufficient documentation'}, {tenantId:tenant,actorId:chair}),e=>e instanceof AppError&&e.status===403);
   assert.equal(readiness.quorumVerified,true);
   await assert.rejects(db.query('DELETE FROM m06_governance.committee_finalisation WHERE tenant_id=$1 AND session_id=$2',
     [tenant,finalised.session.id]),/append-only/);
