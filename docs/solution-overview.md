@@ -161,3 +161,7 @@ These documents are design/research inputs, not claims of implemented capability
 ## Business governance and decision rights (25 October 2026)
 
 The [Business Rules, Decision Rights and Governance Model v1.0](business-rules-decision-rights-governance-v1.0.md) defines proposed operational rules, formal authority checking, segregation of duties, condition clearance, escalation, governance profiles and acceptance criteria based on the approved D01–D10 domain decisions. It is a design document for review, not a declaration that these controls are implemented or that tenant legal delegations have been established.
+
+## Entra ID and prototype access design (25 October 2026)
+
+The organisation uses **Microsoft Entra ID and security groups** for application access. The [Entra identity and prototype stub design v1.0](entra-identity-access-prototype-design-v1.0.md) defines a production OIDC integration, group/app-role mapping to SPM permissions, independent scoped business roles and approval authorities, and an isolated synthetic identity provider for the prototype. No internal Entra access is assumed; no code, migration or live IAM configuration has been changed.
