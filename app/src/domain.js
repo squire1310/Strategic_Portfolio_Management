@@ -409,6 +409,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
   }
   async function workItem(action, body, context, portfolioIds = null, strategyIds = null) {
     return transaction(async client => {
+      if (action === 'created') return (await client.query(`SELECT * FROM platform.work_item WHERE tenant_id=platform.current_tenant() AND created_by=platform.current_actor() AND state='open' AND ($1::uuid[] IS NULL OR object_type <> 'portfolio' OR object_id=ANY($1::uuid[])) AND ($2::uuid[] IS NULL OR object_type <> 'strategy' OR object_id=ANY($2::uuid[])) ORDER BY created_at DESC LIMIT 200`,[portfolioIds,strategyIds])).rows;
       if (action === 'inbox') return (await client.query(`SELECT * FROM platform.work_item
         WHERE tenant_id=platform.current_tenant() AND assignee_id=platform.current_actor()
           AND ($1::uuid[] IS NULL OR object_type <> 'portfolio' OR object_id = ANY($1::uuid[]))
@@ -448,7 +449,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
           [id,requiredText(body.note,'note',2000)]);
       }
       throw new AppError(404,'Unknown work item action');
-    },{write:action!=='inbox',context});
+    },{write:!['inbox','created'].includes(action),context});
   }
   async function assignedScopes(context) {
     return transaction(async client => {
