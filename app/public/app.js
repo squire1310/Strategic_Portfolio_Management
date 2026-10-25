@@ -272,12 +272,41 @@ async function load() {
   if (!response.ok) throw new Error(payload.error || 'Could not load records');
   workspace = payload;
   render();
-  if (window.location.pathname === '/inbox') await loadInbox();
+  if (window.location.pathname === '/inbox') { fillWorkItemTargets(); await loadInbox(); }
   if (window.location.pathname === '/history') {
     const params = new URLSearchParams(window.location.search);
     if (entityTypes[params.get('type')] && params.get('id')) await viewHistory(params.get('type'), params.get('id'));
   } else if (window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
 }
+
+
+function fillWorkItemTargets() {
+  const type = document.querySelector('#task-target-type').value;
+  const target = document.querySelector('#task-target');
+  target.replaceChildren();
+  for (const row of workspace[type === 'strategy' ? 'strategies' : 'portfolios'] || []) {
+    const option = document.createElement('option');
+    option.value = row.id; option.textContent = row.name || row.code || row.id;
+    target.append(option);
+  }
+}
+document.querySelector('#task-target-type').addEventListener('change', fillWorkItemTargets);
+document.querySelector('#work-item-create').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const body = Object.fromEntries(new FormData(form).entries());
+  if (!body.dueOn) delete body.dueOn;
+  try {
+    const response = await fetch('/api/work-items/create', { method:'POST',
+      headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not assign task');
+    show('Task assigned.');
+    form.reset();
+    fillWorkItemTargets();
+    await loadInbox();
+  } catch (error) { show(error.message,'error'); }
+});
 
 async function loadInbox() {
   const container = document.getElementById('work-items-list');
