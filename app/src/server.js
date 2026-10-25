@@ -89,6 +89,14 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Scenario permission required');
         return respond(res,200,await store.scenarioRanking(session.context,path.split('/')[3]));
       }
+      if (req.method === 'POST' && path.startsWith('/api/scenario-overrides/')) {
+        if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped override authority not yet configured');
+        const action=path.slice('/api/scenario-overrides/'.length);
+        if (action==='request' ? !session.user.allowedCommands.includes('portfolio-update')
+          : action==='decide' ? !session.user.allowedCommands.includes('strategy-update') : true)
+          throw new AppError(403,'Override role permission required');
+        return respond(res,201,await store.scenarioOverride(action,await jsonBody(req),session.context));
+      }
       if (req.method === 'POST' && path.startsWith('/api/recommendations/')) {
         if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped recommendation permission not yet implemented');
         if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Recommendation permission required');
