@@ -21,3 +21,5 @@ test('B009 multi-candidate ranking uses competition ties and stable identifiers'
  assert.throws(()=>rankScenarioCandidates([{id:'a',score:80},{id:'a',score:60}]));
  assert.throws(()=>rankScenarioCandidates([{id:'a',score:NaN}]));
 });
+
+// The service additionally requires an independently approved, tenant-scoped override record before below-threshold selection.
