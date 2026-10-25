@@ -407,11 +407,13 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
-  async function workItem(action, body, context) {
+  async function workItem(action, body, context, portfolioIds = null, strategyIds = null) {
     return transaction(async client => {
       if (action === 'inbox') return (await client.query(`SELECT * FROM platform.work_item
         WHERE tenant_id=platform.current_tenant() AND assignee_id=platform.current_actor()
-        ORDER BY due_on NULLS LAST, created_at DESC LIMIT 200`)).rows;
+          AND ($1::uuid[] IS NULL OR object_type <> 'portfolio' OR object_id = ANY($1::uuid[]))
+          AND ($2::uuid[] IS NULL OR object_type <> 'strategy' OR object_id = ANY($2::uuid[]))
+        ORDER BY due_on NULLS LAST, created_at DESC LIMIT 200`, [portfolioIds,strategyIds])).rows;
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
       if (action === 'create') {
         const type = requiredText(body.objectType,'objectType',20);
