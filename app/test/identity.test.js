@@ -84,3 +84,26 @@ test('revoking synthetic groups denies workspace and commands on an existing ses
     assert.equal((await fetch(origin + '/api/workspace', { headers: { cookie } })).status, 200);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('prototype module read grants constrain workspace and history', async () => {
+  const auth = createAuth([account], { groupMappings: mappings, requireGroups: true });
+  const calls = [];
+  const store = {
+    workspace: async (_ctx, keys) => { calls.push(keys); return { keys }; },
+    history: async (_schema, _table, _id, _ctx, keys) => { calls.push(keys); return { keys }; }
+  };
+  const server = createHttpServer(store, { auth });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    const login = await fetch(origin + '/api/login', { method: 'POST',
+      headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ username: account.username, password }) });
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const workspace = await (await fetch(origin + '/api/workspace', { headers: { cookie } })).json();
+    assert.ok(workspace.keys.includes('objectives'));
+    assert.ok(!workspace.keys.includes('investments'));
+    const history = await (await fetch(origin + '/api/history/m05_investment/investment/00000000-0000-4000-8000-000000000222', { headers: { cookie } })).json();
+    assert.ok(!history.keys.includes('investments'));
+    assert.equal(calls.length, 2);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
