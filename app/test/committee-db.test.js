@@ -19,6 +19,23 @@ test('B010 committee evaluation uses effective delegates and excludes recusals',
   const result=await store.committeeSessionEvaluation({tenantId:tenant,actorId:chair},session.rows[0].id);
   assert.equal(result.summary.quorumMet,true);
   assert.equal(result.summary.forVotes,1);
+  await assert.rejects(store.recordCommitteeSession({
+    decisionBodyId:body.rows[0].id,investmentId:inv.id,heldAt:new Date().toISOString(),quorumRequired:2,
+    participants:[{principalId:chair,attended:true,vote:'for'}]
+  },{tenantId:tenant,actorId:chair}),e=>e instanceof AppError&&e.status===409);
+  await assert.rejects(store.recordCommitteeSession({
+    decisionBodyId:body.rows[0].id,investmentId:inv.id,heldAt:new Date().toISOString(),quorumRequired:1,
+    participants:[{principalId:chair,attended:true,conflictDeclared:true,recused:false,vote:'for',evidenceNote:'Conflicted'}]
+  },{tenantId:tenant,actorId:chair}),e=>e instanceof AppError&&e.status===400);
+  const finalised=await store.recordCommitteeSession({
+    decisionBodyId:body.rows[0].id,investmentId:inv.id,heldAt:new Date().toISOString(),quorumRequired:1,
+    participants:[{principalId:chair,attended:true,vote:'for'}]
+  },{tenantId:tenant,actorId:chair});
+  assert.equal(finalised.summary.quorumMet,true);
+  assert.equal(finalised.finalisation.session_id,finalised.session.id);
+  assert.equal(finalised.finalisation.evidence_snapshot.summary.forVotes,1);
+  await assert.rejects(db.query('DELETE FROM m06_governance.committee_finalisation WHERE tenant_id=$1 AND session_id=$2',
+    [tenant,finalised.session.id]),/append-only/);
   await assert.rejects(db.query('UPDATE m06_governance.committee_participant SET vote=$1 WHERE tenant_id=$2 AND session_id=$3',['against',tenant,session.rows[0].id]),/append-only/);
  }finally{await store.close();await db.end();}
 });
