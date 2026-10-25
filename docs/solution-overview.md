@@ -181,3 +181,7 @@ The [Domain Design Reconciliation and Decision Record v1.0](domain-design-reconc
 ## C01–C08 approval record (25 October 2026)
 
 The product owner explicitly accepted all eight design reconciliation decisions. See the [ratified decision record](domain-design-reconciliation-decisions-v1.0.md). This approval establishes design direction, not tenant-specific legal delegation, implementation readiness or approval of database migrations.
+
+## Proposed implementation backlog (25 October 2026)
+
+The [prioritised implementation backlog v1.0](../requirements/implementation-backlog-v1.0.md) sequences 22 traced work items across secure prototype identity, proposal/assessment, formal governance/commitment and expansion. It preserves Increment 1 US-001–US-004 and requires separate work-item/migration approval. No code or schema changes follow from the backlog alone.
