@@ -35,7 +35,7 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.equal(result.outstandingPrecedents,1);
   assert.equal(result.commitmentReady,false);
   const payload={conditionId:condition.rows[0].id,result:'satisfied',evidenceReference:'synthetic:independent-proof'};
-  await assert.rejects(verifierStore.verifyDecisionCondition(payload),e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
   const direct=async (actingAs,verifiedBy)=>{
     const client=new pg.Client({connectionString:process.env.SPM_TEST_DATABASE_URL});
     await client.connect();
@@ -52,7 +52,7 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
     (tenant_id,principal_id,granted_by,effective_during,reason)
     VALUES($1,$2,$3,tstzrange(now()-interval '1 hour',now()+interval '1 day','[)'),$4) RETURNING id`,
     [tenant,verifier,approver,'Test mandate for independent condition evidence verification']);
-  const evidence=await verifierStore.verifyDecisionCondition(payload);
+  const evidence=await verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier});
   assert.equal(evidence.result,'satisfied');
   await assert.rejects(direct(actor,verifier),/Verification actor and tenant context required/);
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
@@ -62,13 +62,13 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.equal(result.effectuationPerformed,false);
   await admin.query(`UPDATE m05_investment.condition_verifier_mandate SET revoked_at=now()
     WHERE tenant_id=$1 AND id=$2`,[tenant,mandate.rows[0].id]);
-  await assert.rejects(verifierStore.verifyDecisionCondition(payload),e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
   await assert.rejects(direct(verifier,verifier),/Effective verifier mandate required/);
   await admin.query(`INSERT INTO m05_investment.condition_verifier_mandate
     (tenant_id,principal_id,granted_by,effective_during,reason)
     VALUES($1,$2,$3,tstzrange(now()-interval '1 hour',now()+interval '1 day','[)'),$4)`,
     [tenant,actor,approver,'Test mandate must not permit investment owner self verification']);
-  await assert.rejects(store.verifyDecisionCondition(payload),e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(store.verifyDecisionCondition(payload,{tenantId:tenant,actorId:actor}),e=>e instanceof AppError&&e.status===403);
   await assert.rejects(direct(actor,actor),/Independent verifier required/);
  } finally {await store.close();await verifierStore.close();await admin.end();}
 });
