@@ -37,6 +37,11 @@ test('B008 independent assessment and criterion coverage', {skip:!process.env.SP
   assert.equal(results.criteria.length,1);
   const completed=await assessor.assessment('complete',{id:assessment.id,expectedVersion:2,rationale:'Assessed independently'},ctx);
   assert.equal(completed.status,'completed');
+  const scenario=await assessor.recommendation('create-scenario',{code:'scenario_'+suffix,name:'Selection scenario',scoringModelId:modelId},ctx);
+  const recommendation=await assessor.recommendation('recommend',{scenarioId:scenario.id,assessmentId:assessment.id,outcome:'defer',rationale:'Further validation required'},ctx);
+  assert.equal(recommendation.recommendation.recommendation,'defer');
+  assert.equal(recommendation.recommendation.demand_id,draft.id);
+  await assert.rejects(assessor.recommendation('recommend',{scenarioId:scenario.id,assessmentId:assessment.id,outcome:'invalid',rationale:'Bad'},ctx),e=>e instanceof AppError&&e.status===400);
   await assert.rejects(assessor.assessment('score',{id:assessment.id,expectedVersion:3,criterionId:criterion.rows[0].id,score:8,evidence:'Late'},ctx),e=>e instanceof AppError&&e.status===409);
  }finally{await Promise.all([owner.close(),assessor.close()]);await db.end();}
 });
