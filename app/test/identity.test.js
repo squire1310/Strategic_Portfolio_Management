@@ -107,3 +107,29 @@ test('prototype module read grants constrain workspace and history', async () =>
     assert.equal(calls.length, 2);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('portfolio-scoped prototype routes receive a trusted scope and cannot run unguarded portfolio writes', async () => {
+  const portfolio = '00000000-0000-4000-8000-000000000201';
+  const scoped = { ...account, username: 'scoped-user', role: 'portfolio_manager', groupIds: [GROUP], portfolioIds: [portfolio] };
+  const auth = createAuth([scoped], { groupMappings: { [GROUP]: ['portfolio_manager'] }, requireGroups: true });
+  const calls = [];
+  const store = {
+    workspace: async (_ctx, keys, ids) => { calls.push({ keys, ids }); return { ids }; },
+    command: async () => { throw new Error('Unverified scoped write invoked'); }
+  };
+  const server = createHttpServer(store, { auth });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    const login = await fetch(origin + '/api/login', { method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ username: scoped.username, password }) });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const result = await (await fetch(origin + '/api/workspace', { headers: { cookie } })).json();
+    assert.deepEqual(result.ids, [portfolio]);
+    assert.deepEqual(calls[0].ids, [portfolio]);
+    const denied = await fetch(origin + '/api/commands/portfolio-update', { method: 'POST',
+      headers: { cookie, origin, 'content-type': 'application/json' }, body: '{}' });
+    assert.equal(denied.status, 403);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
