@@ -173,3 +173,7 @@ The organisation uses **Microsoft Entra ID and security groups** for application
 ## Lifecycle-to-canonical-model gap assessment (25 October 2026)
 
 [Gap Analysis v1.0](lifecycle-canonical-data-model-gap-analysis-v1.0.md) compares the proposed lifecycle transitions with canonical model v1.1 and reconciled-core migrations V001–V008. It identifies 22 severity-ranked gaps, existing V006 safeguards, the unverified execution status of V008 and the required architecture/product decisions before any migrations. This is an assessment only; no implementation work is authorised.
+
+## Domain design reconciliation (25 October 2026)
+
+The [Domain Design Reconciliation and Decision Record v1.0](domain-design-reconciliation-decisions-v1.0.md) proposes dispositions for C01–C08: pre-investment formal decisions, condition ownership, work-item handoffs, Entra entitlement mapping, committee evidence, cross-module effectuation, v1.1 strategic risk and derived UX states. **These recommendations await explicit ratification**; approved D01–D10 and existing implementation scope are unchanged.
