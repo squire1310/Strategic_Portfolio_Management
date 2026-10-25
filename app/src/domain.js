@@ -477,9 +477,13 @@ export function createStore({ connectionString, tenantId, actorId }) {
         await one(client,`SELECT id FROM m04_selection.scoring_model
           WHERE tenant_id=platform.current_tenant() AND id=$1 AND status='active'
             AND effective_during @> CURRENT_DATE`,[modelId],'Active scoring model required');
+        const basis=await one(client,`SELECT cr.id FROM m03_demand.case_revision cr
+          JOIN m03_demand.business_case bc ON bc.tenant_id=cr.tenant_id AND bc.id=cr.business_case_id
+          WHERE bc.tenant_id=platform.current_tenant() AND bc.demand_id=$1
+          ORDER BY cr.revision_no DESC LIMIT 1`,[demandId],'Submitted case revision required');
         return one(client,`INSERT INTO m04_selection.assessment
-          (tenant_id,demand_id,scoring_model_id,assessor_id)
-          VALUES(platform.current_tenant(),$1,$2,platform.current_actor()) RETURNING *`,[demandId,modelId]);
+          (tenant_id,demand_id,scoring_model_id,assessor_id,case_revision_id)
+          VALUES(platform.current_tenant(),$1,$2,platform.current_actor(),$3) RETURNING *`,[demandId,modelId,basis.id]);
       }
       const id=uuid(body.id,'id'), expected=version(body.expectedVersion);
       const current=await one(client,`SELECT * FROM m04_selection.assessment
