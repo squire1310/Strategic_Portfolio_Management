@@ -153,3 +153,28 @@ Review exact names/ownership against reconciled canonical domain model v1.1 befo
 7. Confirm enterprise permission model and organisation/portfolio boundaries; Entra group membership alone is insufficient for investment-specific approvals.
 
 **Next design impact:** Lifecycle and state-transition matrices must include identity/group eligibility, scoped assignment, formal authority and SoD guards. Prototype implementation should follow this identity contract, not invent separate ad hoc auth semantics.
+
+## 11. Production access requests through ServiceNow (confirmed operating assumption, 25 October 2026)
+
+**Product-owner direction:** Access to the production application will be requested and administered through **ServiceNow catalogue requests**. SPM must **not** develop a competing self-service access-request, approval or fulfilment portal for production.
+
+**Division of responsibility:**
+
+| Concern | Primary owner | SPM responsibility |
+|---|---|---|
+| Request, business approval, fulfilment routing, catalogue audit | ServiceNow catalogue and organisation's IAM operating process | No duplicate request workflow; retain optional correlation/reference for audit |
+| Provisioning and revocation of enterprise app access and group membership | Enterprise IAM automation / Entra ID, as implemented by organisation | Consume verified current membership and fail closed |
+| User authentication, MFA and conditional access | Microsoft Entra ID | Validate authenticated identity and sessions |
+| Application permissions | SPM tenant policy mapping from Entra group IDs / app roles | Enforce at API level |
+| Strategy/portfolio object assignments | SPM canonical access assignments (or controlled IAM-driven provisioning contract) | Enforce effective dates, scope and revocation; audit changes |
+| Formal investment approval powers | SPM governance with external legal delegations | Enforce mandate, independence, limits and quorum; never infer from a catalogue request alone |
+
+**Target interaction:** Requester submits ServiceNow catalogue item → configured approver(s) authorise access → IAM fulfilment updates Entra enterprise-app assignment/security-group membership **and**, where required, provisions or revokes scoped SPM assignments → SPM independently verifies group entitlement, active tenant membership and effective object scope on access. Request completion does not grant access until all relevant entitlement/assignment updates are visible and verified.
+
+**Integration decision pending:** Confirm whether ServiceNow catalogue fulfilment is manual, orchestrated via existing IAM tools, or calls an SPM integration API. Do **not** assume direct ServiceNow → SPM or ServiceNow → Entra API access without IAM design/credentials/ownership confirmation. If scoped SPM assignment provisioning is integrated, expose a separate authenticated, least-privilege, idempotent service-to-service endpoint with explicit grant/revoke and reconciliation, never the normal user API or raw database access. Validate scope, requester/approver, catalogue item reference, principal ID, effective dates, expiry and approved access type. Audit and retain request reference without replicating unnecessary personnel data.
+
+**Prototype:** Maintain synthetic identities and test-only assignment fixtures/admin seed for demonstrations. ServiceNow and live Entra are not prerequisites for local testing. Do not simulate catalogue approval as investment decision authority.
+
+**Access lifecycle:** New grant, modified scope, expiry, transfer and leaver/revocation flows need IAM-to-SPM reconciliation and negative tests. For revocation, avoid stale cached group memberships; fail closed when required membership cannot be verified. The ServiceNow ticket may be *fulfilled* while the downstream Entra/SPM entitlement is still pending; communicate these statuses distinctly.
+
+**Operational questions for IAM/ServiceNow teams:** catalogue item type/fields; approver rules and SoD; ownership of group versus object assignments; desired fulfilment mechanism; service identities and credentials; turnaround/SLA and emergency access; revocation notifications, retries and reconciliation; authoritative source for organisational scope; access review and evidence-retention obligations.
