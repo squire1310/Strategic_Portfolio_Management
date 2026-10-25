@@ -73,21 +73,30 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       }
       if (path.startsWith('/api/') && !session) throw new AppError(401, 'Sign in required');
       if (path.startsWith('/api/') && session && session.hasAppAccess === false) throw new AppError(403, 'Application entitlement required');
+      // Prototype-only database assignments are authoritative where a real store supports them.
+      // Mock stores retain fixture scopes for existing isolated API tests.
+      let portfolioScope = session?.user.portfolioIds;
+      let strategyScope = session?.user.strategyIds;
+      if (session && portfolioScope !== null && typeof store.assignedScopes === 'function') {
+        const assignments = await store.assignedScopes(session.context);
+        portfolioScope = assignments.portfolioIds;
+        strategyScope = assignments.strategyIds;
+      }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
       if (req.method === 'GET' && path === '/api/workspace') {
         if (!session.user.allowedCommands.length && session.user.role !== 'viewer') throw new AppError(403, 'Workspace access denied');
-        return respond(res, 200, await store.workspace(session.context, session.user.readKeys, session.user.portfolioIds, session.user.strategyIds));
+        return respond(res, 200, await store.workspace(session.context, session.user.readKeys, portfolioScope, strategyScope));
       }
       if (req.method === 'GET' && path.startsWith('/api/history/')) {
         const parts = path.split('/');
         if (parts.length !== 6) throw new AppError(404, 'Unknown history path');
-        return respond(res, 200, await store.history(parts[3], parts[4], parts[5], session.context, session.user.readKeys, session.user.portfolioIds, session.user.strategyIds));
+        return respond(res, 200, await store.history(parts[3], parts[4], parts[5], session.context, session.user.readKeys, portfolioScope, strategyScope));
       }
       if (req.method === 'POST' && path.startsWith('/api/commands/')) {
         const name = path.slice('/api/commands/'.length);
         if (!/^[a-z-]+$/.test(name)) throw new AppError(404, 'Unknown command');
         if (!session.user.allowedCommands.includes(name)) throw new AppError(403, 'Your role cannot change this record');
-        return respond(res, 201, await store.command(name, await jsonBody(req), session.context, session.user.portfolioIds, session.user.strategyIds));
+        return respond(res, 201, await store.command(name, await jsonBody(req), session.context, portfolioScope, strategyScope));
       }
       throw new AppError(404, 'Not found');
     } catch (error) {
