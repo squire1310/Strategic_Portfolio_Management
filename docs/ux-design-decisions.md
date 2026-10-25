@@ -34,3 +34,7 @@ Both are specifications awaiting usability validation; no app or schema changes 
 ## Governance rules design (25 October 2026)
 
 [Business Rules, Decision Rights and Governance Model v1.0](business-rules-decision-rights-governance-v1.0.md) translates the approved D01–D10 domain decisions and J01–J11 journeys into an operating rules model, authority/SoD matrix, policy configuration catalogue, exception routes and GOV-T01–T18 acceptance tests. Additional BR rules are **proposed**, not ratified; no schema or code changes are authorised.
+
+## Entra ID and prototype access design (25 October 2026)
+
+The organisation uses **Microsoft Entra ID and security groups** for application access. The [Entra identity and prototype stub design v1.0](entra-identity-access-prototype-design-v1.0.md) defines a production OIDC integration, group/app-role mapping to SPM permissions, independent scoped business roles and approval authorities, and an isolated synthetic identity provider for the prototype. No internal Entra access is assumed; no code, migration or live IAM configuration has been changed.
