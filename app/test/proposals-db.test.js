@@ -10,10 +10,12 @@ test('B006 draft submission preserves immutable case revision', {skip:!process.e
  try {
   const created=await store.proposal('create',{code:'demand_'+randomUUID().slice(0,8),title:'Test proposal',description:'Draft'},ctx);
   assert.equal(created.status,'draft');
+  assert.ok((await store.proposalList(ctx,false)).some(p=>p.id===created.id));
   const edited=await store.proposal('edit',{id:created.id,expectedVersion:1,title:'Updated proposal',description:'Reviewed draft'},ctx);
   assert.equal(edited.row_version,2);
   const result=await store.proposal('submit',{id:created.id,expectedVersion:2,summary:'Business need',options:[],assumptions:[]},ctx);
   assert.equal(result.proposal.status,'submitted');
+  assert.ok((await store.proposalList(ctx,false)).some(p=>p.id===created.id&&p.latest_revision===1));
   assert.equal(result.revision.revision_no,1);
   assert.equal(result.revision.summary,'Business need');
   await assert.rejects(store.proposal('submit',{id:created.id,expectedVersion:3,summary:'Duplicate',options:[],assumptions:[]},ctx),
