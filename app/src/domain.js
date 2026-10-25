@@ -555,6 +555,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
     if(!['approve','defer','reject'].includes(decisionType)) throw new AppError(400,'Unsupported decision type');
     const rationale=requiredText(body.rationale,'rationale',2000);
     const approval=decisionType==='approve';
+    if(approval&&!body.recommendationId) throw new AppError(403,'Approval requires governed selection evidence');
     const recommendationId=approval?uuid(body.recommendationId,'recommendationId'):null;
     const approvalAmount=approval?finiteNumber(body.approvalAmount,'approvalAmount'):null;
     const approvalCurrency=approval?requiredText(body.approvalCurrency,'approvalCurrency',3):null;
