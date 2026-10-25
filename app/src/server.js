@@ -76,7 +76,7 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
       if (req.method === 'GET' && path === '/api/workspace') {
         if (!session.user.allowedCommands.length && session.user.role !== 'viewer') throw new AppError(403, 'Workspace access denied');
-        return respond(res, 200, await store.workspace(session.context, session.user.readKeys));
+        return respond(res, 200, await store.workspace(session.context, session.user.readKeys, session.user.portfolioIds));
       }
       if (req.method === 'GET' && path.startsWith('/api/history/')) {
         const parts = path.split('/');
