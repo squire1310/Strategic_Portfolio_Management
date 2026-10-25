@@ -85,7 +85,7 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
       if (req.method === 'GET' && path === '/api/work-items/inbox') {
-        return respond(res,200,await store.workItem('inbox',null,session.context));
+        return respond(res,200,await store.workItem('inbox',null,session.context,portfolioScope,strategyScope));
       }
       if (req.method === 'POST' && path.startsWith('/api/work-items/')) {
         // Until object-level B005 write policy is complete, prototype-scoped users fail closed.
