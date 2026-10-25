@@ -422,6 +422,16 @@ export function createStore({ connectionString, tenantId, actorId }) {
         candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
     },{context});
   }
+  async function requireConditionReadAccess(client,context,ownerId,sponsorId) {
+    if([ownerId,sponsorId].includes(context.actorId)) return;
+    const mandate=await client.query(`SELECT 1 FROM m05_investment.condition_verifier_mandate v
+      JOIN platform.tenant_member m ON m.tenant_id=v.tenant_id AND m.principal_id=v.principal_id
+      WHERE v.tenant_id=platform.current_tenant() AND v.principal_id=platform.current_actor()
+        AND m.active AND m.member_role IN ('contributor','administrator')
+        AND v.effective_during @> statement_timestamp()
+        AND (v.revoked_at IS NULL OR v.revoked_at>statement_timestamp()) LIMIT 1`);
+    if(!mandate.rowCount) throw new AppError(403,'Condition owner, sponsor or effective verifier mandate required');
+  }
   async function submitConditionEvidence(body,context) {
     if(!body||typeof body!=='object'||Array.isArray(body)) throw new AppError(400,'Condition evidence required');
     const conditionId=uuid(body.conditionId,'conditionId');
@@ -479,15 +489,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
         FROM m05_investment.investment_decision d
         LEFT JOIN m05_investment.investment i ON i.tenant_id=d.tenant_id AND i.id=d.investment_id
         WHERE d.tenant_id=platform.current_tenant() AND d.id=$1`,[decisionId]);
-      if(![decision.owner_id,decision.sponsor_id].includes(context.actorId)) {
-        const mandate=await client.query(`SELECT 1 FROM m05_investment.condition_verifier_mandate v
-          JOIN platform.tenant_member m ON m.tenant_id=v.tenant_id AND m.principal_id=v.principal_id
-          WHERE v.tenant_id=platform.current_tenant() AND v.principal_id=platform.current_actor()
-            AND m.active AND m.member_role IN ('contributor','administrator')
-            AND v.effective_during @> statement_timestamp()
-            AND (v.revoked_at IS NULL OR v.revoked_at>statement_timestamp()) LIMIT 1`);
-        if(!mandate.rowCount) throw new AppError(403,'Condition owner, sponsor or effective verifier mandate required');
-      }
+      await requireConditionReadAccess(client,context,decision.owner_id,decision.sponsor_id);
       const conditions=(await client.query(`SELECT c.id,c.condition_type,c.description,c.due_on,
         s.id AS latest_submission_id,s.submitted_at AS latest_submitted_at,
         v.result AS verification_result,v.verified_at,v.submission_id AS verification_submission_id,
@@ -503,6 +505,27 @@ export function createStore({ connectionString, tenantId, actorId }) {
         WHERE c.tenant_id=platform.current_tenant() AND c.decision_id=$1 ORDER BY c.id`,[decisionId])).rows;
       return {decisionId,decisionType:decision.decision_type,conditions,
         ...evaluateDecisionConditions(decision.decision_type,conditions)};
+    },{context});
+  }
+  async function conditionEvidenceHistory(context,conditionId) {
+    uuid(conditionId,'conditionId');
+    return transaction(async client=>{
+      const condition=await one(client,`SELECT c.decision_id,i.owner_id,i.sponsor_id
+        FROM m05_investment.decision_condition c
+        JOIN m05_investment.investment_decision d ON d.tenant_id=c.tenant_id AND d.id=c.decision_id
+        LEFT JOIN m05_investment.investment i ON i.tenant_id=d.tenant_id AND i.id=d.investment_id
+        WHERE c.tenant_id=platform.current_tenant() AND c.id=$1`,[conditionId]);
+      await requireConditionReadAccess(client,context,condition.owner_id,condition.sponsor_id);
+      const submissions=(await client.query(`SELECT id,submitted_by,evidence_reference,submitted_at
+        FROM m05_investment.condition_evidence_submission
+        WHERE tenant_id=platform.current_tenant() AND condition_id=$1
+        ORDER BY submitted_at,id`,[conditionId])).rows;
+      const verifications=(await client.query(`SELECT id,submission_id,verified_by,result,
+          evidence_reference,mandate_id,verified_at
+        FROM m05_investment.condition_verification
+        WHERE tenant_id=platform.current_tenant() AND condition_id=$1
+        ORDER BY verified_at,id`,[conditionId])).rows;
+      return {conditionId,decisionId:condition.decision_id,submissions,verifications};
     },{context});
   }
   async function recordInvestmentDecision(body,context) {
@@ -983,7 +1006,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, recordInvestmentDecision, decisionConditionReadiness, submitConditionEvidence, verifyDecisionCondition, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, recordInvestmentDecision, decisionConditionReadiness, conditionEvidenceHistory, submitConditionEvidence, verifyDecisionCondition, close: () => pool.end() };
 }
 
 export function httpError(error) {

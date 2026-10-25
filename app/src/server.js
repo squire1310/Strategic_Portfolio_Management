@@ -99,6 +99,12 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         if(!session.user.allowedCommands.includes('condition-verify')) throw new AppError(403,'Verifier functional permission required');
         return respond(res,201,await store.verifyDecisionCondition(await jsonBody(req),session.context));
       }
+      if(req.method==='GET' && /^\/api\/conditions\/[0-9a-f-]{36}\/history$/.test(path)) {
+        if(portfolioScope!==null||strategyScope!==null) throw new AppError(403,'Scoped condition history not configured');
+        if(!session.user.allowedCommands.some(command=>['condition-submit','condition-verify'].includes(command)))
+          throw new AppError(403,'Condition history permission required');
+        return respond(res,200,await store.conditionEvidenceHistory(session.context,path.split('/')[3]));
+      }
       if(req.method==='GET' && /^\/api\/investment-decisions\/[0-9a-f-]{36}\/conditions$/.test(path)) {
         if(portfolioScope!==null||strategyScope!==null) throw new AppError(403,'Scoped condition access not configured');
         if(!session.user.allowedCommands.some(command=>['condition-submit','condition-verify'].includes(command)))

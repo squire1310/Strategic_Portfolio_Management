@@ -48,6 +48,11 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   const submitted=await store.submitConditionEvidence({conditionId:condition.rows[0].id,
     evidenceReference:'synthetic:independent-proof'},{tenantId:tenant,actorId:actor});
   assert.equal(submitted.submitted_by,actor);
+  assert.equal((await store.conditionEvidenceHistory({tenantId:tenant,actorId:actor},condition.rows[0].id)).submissions[0].id,submitted.id);
+  await assert.rejects(verifierStore.conditionEvidenceHistory({tenantId:tenant,actorId:verifier},condition.rows[0].id),
+    e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(otherStore.conditionEvidenceHistory({tenantId:otherTenant,actorId:otherActor},condition.rows[0].id),
+    e=>e instanceof AppError&&e.status===404);
   const payload={conditionId:condition.rows[0].id,submissionId:submitted.id,result:'satisfied'};
   await assert.rejects(verifierStore.verifyDecisionCondition({conditionId:condition.rows[0].id,result:'satisfied'},
     {tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===400);
@@ -80,6 +85,8 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
     VALUES($1,$2,$3,tstzrange(now()-interval '1 hour',now()+interval '1 day','[)'),$4) RETURNING id`,
     [tenant,verifier,approver,'Test mandate for independent condition evidence verification']);
   assert.equal((await verifierStore.decisionConditionReadiness({tenantId:tenant,actorId:verifier},decision.rows[0].id)).outstandingPrecedents,1);
+  assert.equal((await verifierStore.conditionEvidenceHistory({tenantId:tenant,actorId:verifier},condition.rows[0].id)).submissions[0].evidence_reference,
+    submitted.evidence_reference);
   const evidence=await verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier});
   assert.equal(evidence.result,'satisfied');
   assert.equal(evidence.mandate_id,mandate.rows[0].id);
@@ -112,6 +119,10 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   const currentPayload={...payload,submissionId:revisedSubmission.id};
   const revisedVerification=await verifierStore.verifyDecisionCondition(currentPayload,{tenantId:tenant,actorId:verifier});
   assert.equal(revisedVerification.evidence_reference,'synthetic:revised-proof');
+  const trail=await store.conditionEvidenceHistory({tenantId:tenant,actorId:actor},condition.rows[0].id);
+  assert.deepEqual(trail.submissions.map(row=>row.id),[submitted.id,revisedSubmission.id]);
+  assert.deepEqual(trail.verifications.map(row=>row.submission_id),[submitted.id,revisedSubmission.id]);
+  assert.deepEqual(trail.verifications.map(row=>row.mandate_id),[mandate.rows[0].id,mandate.rows[0].id]);
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,0);
   assert.equal(result.precedentClearance,true);
@@ -133,6 +144,8 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   await admin.query(`UPDATE m05_investment.condition_verifier_mandate SET revoked_at=now()
     WHERE tenant_id=$1 AND id=$2`,[tenant,mandate.rows[0].id]);
   await assert.rejects(verifierStore.decisionConditionReadiness({tenantId:tenant,actorId:verifier},decision.rows[0].id),
+    e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(verifierStore.conditionEvidenceHistory({tenantId:tenant,actorId:verifier},condition.rows[0].id),
     e=>e instanceof AppError&&e.status===403);
   await assert.rejects(verifierStore.verifyDecisionCondition(currentPayload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
   await assert.rejects(direct(verifier,verifier),/Effective verifier mandate required/);

@@ -72,9 +72,12 @@ test('condition evidence submission requires the submitter entitlement', async (
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
-test('condition status is available to submitter and verifier roles only', async () => {
+test('condition status and evidence history are available to participant roles only', async () => {
   const calls = [];
-  const store = { decisionConditionReadiness: async (context, id) => { calls.push({ context, id }); return { decisionId:id }; } };
+  const store = {
+    decisionConditionReadiness: async (context, id) => { calls.push({ context, id }); return { decisionId:id }; },
+    conditionEvidenceHistory: async (context, id) => { calls.push({ context, id }); return { conditionId:id }; }
+  };
   const auth = createAuth([
     { ...account, username: 'status-owner', role: 'engagement_lead', groupIds: undefined },
     { ...account, username: 'status-verifier', role: 'verifier', groupIds: undefined },
@@ -90,8 +93,10 @@ test('condition status is available to submitter and verifier roles only', async
       const cookie = login.headers.get('set-cookie').split(';')[0];
       const response = await fetch(origin + `/api/investment-decisions/${ACTOR}/conditions`, { headers: { cookie } });
       assert.equal(response.status, status);
+      const history = await fetch(origin + `/api/conditions/${ACTOR}/history`, { headers: { cookie } });
+      assert.equal(history.status, status);
     }
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 4);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
