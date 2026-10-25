@@ -106,3 +106,7 @@ Following independent M03 intake review, `POST /api/proposals/accept` moves a tr
 ### B008 initial independent assessment slice
 
 `POST /api/assessments/create`, `/score` and `/complete` use canonical M04 scoring models, criteria, assessments and criterion scores. Assessment requires an active effective scoring model and eligible triaged/accepted demand, and rejects the proposal submitter as assessor. Scores must be within configured criterion maxima and have evidence; completion requires every criterion to be scored and a rationale. This is assessment evidence only, not a selection recommendation or investment approval. Initial route access uses the existing local prototype portfolio-manager command entitlement, while full assessor role/scoped permissions, scoring model administration and UI remain future work.
+
+### B008 scenarios and selection recommendations
+
+The initial `POST /api/recommendations/create-scenario` and `/recommend` endpoints create M04 scenarios and append-only selection recommendations (`select`, `defer`, `reject`) against a completed assessment using the same active scoring model. The scenario owner records a supporting rationale; scoped identity mode remains denied pending the dedicated M04 access policy. Recommendations are advisory evidence and **do not** create formal M05 investment decisions, approvals or commitments. Weighted results are read-only and must not substitute for delegated approval authority.
