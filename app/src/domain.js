@@ -419,7 +419,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       const id=uuid(body.id,'id');
       const current=await one(client,`SELECT * FROM m03_demand.demand
         WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
-      if(current.submitted_by !== context.actorId) throw new AppError(403,'Proposal owner required');
+      if(action !== 'review' && current.submitted_by !== context.actorId) throw new AppError(403,'Proposal owner required');
       if(current.row_version !== version(body.expectedVersion)) throw new AppError(409,'Stale proposal');
       if(action === 'edit') {
         if(current.status !== 'draft') throw new AppError(409,'Only draft proposals can be edited');
@@ -446,6 +446,23 @@ export function createStore({ connectionString, tenantId, actorId }) {
           submitted_at=COALESCE(submitted_at,transaction_timestamp())
           WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,[id]);
         return {proposal:updated,revision};
+      }
+      if(action === 'review') {
+        if(current.submitted_by === context.actorId) throw new AppError(403,'Independent reviewer required');
+        if(current.status !== 'submitted') throw new AppError(409,'Proposal not awaiting review');
+        const outcome=requiredText(body.outcome,'outcome',40);
+        if(!['return_for_correction','accept_for_assessment'].includes(outcome)) throw new AppError(400,'Invalid review outcome');
+        const revision=await one(client,`SELECT cr.id FROM m03_demand.case_revision cr
+          JOIN m03_demand.business_case bc ON bc.tenant_id=cr.tenant_id AND bc.id=cr.business_case_id
+          WHERE bc.tenant_id=platform.current_tenant() AND bc.demand_id=$1 ORDER BY cr.revision_no DESC LIMIT 1`,[id]);
+        const evidence=await one(client,`INSERT INTO m03_demand.intake_review
+          (tenant_id,demand_id,case_revision_id,reviewer_id,outcome,feedback)
+          VALUES(platform.current_tenant(),$1,$2,platform.current_actor(),$3,$4) RETURNING *`,
+          [id,revision.id,outcome,requiredText(body.feedback,'feedback',2000)]);
+        const next=outcome==='return_for_correction'?'draft':'triage';
+        const updated=await one(client,`UPDATE m03_demand.demand SET status=$2
+          WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,[id,next]);
+        return {proposal:updated,review:evidence};
       }
       throw new AppError(404,'Unknown proposal action');
     },{write:true,context});
