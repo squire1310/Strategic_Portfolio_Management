@@ -101,7 +101,8 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       }
       if(req.method==='GET' && /^\/api\/investment-decisions\/[0-9a-f-]{36}\/conditions$/.test(path)) {
         if(portfolioScope!==null||strategyScope!==null) throw new AppError(403,'Scoped condition access not configured');
-        if(!session.user.allowedCommands.includes('condition-verify')) throw new AppError(403,'Decision condition permission required');
+        if(!session.user.allowedCommands.some(command=>['condition-submit','condition-verify'].includes(command)))
+          throw new AppError(403,'Decision condition permission required');
         return respond(res,200,await store.decisionConditionReadiness(session.context,path.split('/')[3]));
       }
       if(req.method==='POST' && path==='/api/investment-decisions/record') {

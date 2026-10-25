@@ -72,6 +72,29 @@ test('condition evidence submission requires the submitter entitlement', async (
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
+test('condition status is available to submitter and verifier roles only', async () => {
+  const calls = [];
+  const store = { decisionConditionReadiness: async (context, id) => { calls.push({ context, id }); return { decisionId:id }; } };
+  const auth = createAuth([
+    { ...account, username: 'status-owner', role: 'engagement_lead', groupIds: undefined },
+    { ...account, username: 'status-verifier', role: 'verifier', groupIds: undefined },
+    { ...account, username: 'status-viewer', role: 'viewer', groupIds: undefined }
+  ]);
+  const server = createHttpServer(store, { auth });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    for (const [username, status] of [['status-owner', 200], ['status-verifier', 200], ['status-viewer', 403]]) {
+      const login = await fetch(origin + '/api/login', { method: 'POST', headers: { origin, 'content-type': 'application/json' },
+        body: JSON.stringify({ username, password }) });
+      const cookie = login.headers.get('set-cookie').split(';')[0];
+      const response = await fetch(origin + `/api/investment-decisions/${ACTOR}/conditions`, { headers: { cookie } });
+      assert.equal(response.status, status);
+    }
+    assert.equal(calls.length, 2);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
 test('prototype mode rejects production and unimplemented Entra provider', () => {
   assert.equal(prototypeModeAllowed({ SPM_IDENTITY_PROVIDER: 'prototype', SPM_DEPLOYMENT_ENV: 'test' }), true);
   assert.throws(() => prototypeModeAllowed({ SPM_IDENTITY_PROVIDER: 'prototype', SPM_DEPLOYMENT_ENV: 'production' }));

@@ -475,8 +475,19 @@ export function createStore({ connectionString, tenantId, actorId }) {
   async function decisionConditionReadiness(context, decisionId) {
     uuid(decisionId,'decisionId');
     return transaction(async client => {
-      const decision=await one(client,`SELECT decision_type FROM m05_investment.investment_decision
-        WHERE tenant_id=platform.current_tenant() AND id=$1`,[decisionId]);
+      const decision=await one(client,`SELECT d.decision_type,i.owner_id,i.sponsor_id
+        FROM m05_investment.investment_decision d
+        LEFT JOIN m05_investment.investment i ON i.tenant_id=d.tenant_id AND i.id=d.investment_id
+        WHERE d.tenant_id=platform.current_tenant() AND d.id=$1`,[decisionId]);
+      if(![decision.owner_id,decision.sponsor_id].includes(context.actorId)) {
+        const mandate=await client.query(`SELECT 1 FROM m05_investment.condition_verifier_mandate v
+          JOIN platform.tenant_member m ON m.tenant_id=v.tenant_id AND m.principal_id=v.principal_id
+          WHERE v.tenant_id=platform.current_tenant() AND v.principal_id=platform.current_actor()
+            AND m.active AND m.member_role IN ('contributor','administrator')
+            AND v.effective_during @> statement_timestamp()
+            AND (v.revoked_at IS NULL OR v.revoked_at>statement_timestamp()) LIMIT 1`);
+        if(!mandate.rowCount) throw new AppError(403,'Condition owner, sponsor or effective verifier mandate required');
+      }
       const conditions=(await client.query(`SELECT c.id,c.condition_type,c.description,c.due_on,
         s.id AS latest_submission_id,s.submitted_at AS latest_submitted_at,
         v.result AS verification_result,v.verified_at,v.submission_id AS verification_submission_id,
