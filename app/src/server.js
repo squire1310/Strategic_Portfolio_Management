@@ -118,8 +118,10 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       }
       if(req.method==='POST' && path==='/api/investment-decisions/record') {
         if(portfolioScope!==null||strategyScope!==null) throw new AppError(403,'Scoped decision authority not configured');
-        if(!session.user.allowedCommands.includes('strategy-update')) throw new AppError(403,'Decision authority permission required');
-        return respond(res,201,await store.recordInvestmentDecision(await jsonBody(req),session.context));
+        const body=await jsonBody(req);
+        const permission=body?.decisionType==='approve'?'investment-approve':'strategy-update';
+        if(!session.user.allowedCommands.includes(permission)) throw new AppError(403,'Decision authority permission required');
+        return respond(res,201,await store.recordInvestmentDecision(body,session.context));
       }
       if (req.method === 'GET' && /^\/api\/committee-sessions\/[0-9a-f-]{36}\/decision-readiness$/.test(path)) {
         if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped committee authority not configured');
@@ -128,7 +130,8 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
       }
       if (req.method === 'POST' && path === '/api/committee-sessions/finalise') {
         if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped committee authority not configured');
-        if (!session.user.allowedCommands.includes('strategy-update')) throw new AppError(403,'Committee chair permission required');
+        if (!session.user.allowedCommands.some(command=>['committee-finalise','strategy-update'].includes(command)))
+          throw new AppError(403,'Committee chair permission required');
         return respond(res,201,await store.recordCommitteeSession(await jsonBody(req),session.context));
       }
       if (req.method === 'GET' && /^\/api\/committee-sessions\/[0-9a-f-]{36}\/evaluation$/.test(path)) {

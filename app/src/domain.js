@@ -552,9 +552,23 @@ export function createStore({ connectionString, tenantId, actorId }) {
     if(!body || typeof body!=='object'||Array.isArray(body)) throw new AppError(400,'Decision details required');
     const sessionId=uuid(body.sessionId,'sessionId');
     const decisionType=requiredText(body.decisionType,'decisionType',20);
-    if(!['defer','reject'].includes(decisionType))
-      throw new AppError(403,'Approval and effectuation require a separate governed command');
+    if(!['approve','defer','reject'].includes(decisionType)) throw new AppError(400,'Unsupported decision type');
     const rationale=requiredText(body.rationale,'rationale',2000);
+    const approval=decisionType==='approve';
+    const recommendationId=approval?uuid(body.recommendationId,'recommendationId'):null;
+    const approvalAmount=approval?finiteNumber(body.approvalAmount,'approvalAmount'):null;
+    const approvalCurrency=approval?requiredText(body.approvalCurrency,'approvalCurrency',3):null;
+    if(approval&&(approvalAmount<0||!Number.isSafeInteger(Math.round(approvalAmount*100))||
+       Math.abs(approvalAmount*100-Math.round(approvalAmount*100))>1e-7||
+       !/^[A-Z]{3}$/.test(approvalCurrency))) throw new AppError(400,'Valid approval amount and currency required');
+    const conditions=approval?(body.conditions??[]):[];
+    if(!Array.isArray(conditions)||(!approval&&body.conditions!=null)) throw new AppError(400,'Conditions require an approval');
+    const obligations=conditions.map(c=>{
+      if(!c||typeof c!=='object'||Array.isArray(c)) throw new AppError(400,'Invalid condition');
+      const conditionType=requiredText(c.conditionType,'conditionType',20);
+      if(!['precedent','subsequent'].includes(conditionType)) throw new AppError(400,'Invalid condition type');
+      return {conditionType,description:requiredText(c.description,'description',2000),dueOn:optionalDate(c.dueOn,'dueOn')};
+    });
     return transaction(async client=>{
       const session=await one(client,`SELECT s.*,f.evidence_snapshot,b.chair_id FROM m06_governance.committee_session s
         JOIN m06_governance.committee_finalisation f ON f.tenant_id=s.tenant_id AND f.session_id=s.id
@@ -563,6 +577,21 @@ export function createStore({ connectionString, tenantId, actorId }) {
       if(session.evidence_snapshot?.summary?.quorumMet!==true) throw new AppError(409,'Finalised quorum required');
       const ballot=session.evidence_snapshot.summary;
       if(ballot.forVotes<=ballot.against) throw new AppError(409,'Recorded vote does not support a positive decision');
+      if(approval){
+        const participants=(await client.query(`SELECT principal_id,attended,conflict_declared,recused,vote
+          FROM m06_governance.committee_participant WHERE tenant_id=platform.current_tenant()
+          AND session_id=$1`,[sessionId])).rows;
+        const delegates=(await client.query(`SELECT DISTINCT delegate_id FROM m06_governance.delegation
+          WHERE tenant_id=platform.current_tenant() AND decision_body_id=$1
+          AND effective_during @> $2::timestamptz`,[session.decision_body_id,session.held_at])).rows;
+        const actual=evaluateCommitteeQuorum({required:session.quorum_required,
+          participants:participants.map(p=>({principalId:p.principal_id,attended:p.attended,
+            conflictDeclared:p.conflict_declared,recused:p.recused,vote:p.vote})),
+          eligiblePrincipalIds:delegates.map(d=>d.delegate_id)});
+        if(!actual.quorumMet||actual.forVotes<=actual.against||
+          ['required','eligiblePresent','forVotes','against','abstentions','recused'].some(k=>actual[k]!==ballot[k]))
+          throw new AppError(409,'Committee ballot evidence is inconsistent');
+      }
       const delegated=await client.query(`SELECT 1 FROM m06_governance.delegation
         WHERE tenant_id=platform.current_tenant() AND decision_body_id=$1 AND delegate_id=platform.current_actor()
         AND scope_code IN ('investment','all') AND effective_during @> $2::timestamptz`,
@@ -573,17 +602,43 @@ export function createStore({ connectionString, tenantId, actorId }) {
       if([investment.owner_id,investment.sponsor_id].includes(context.actorId))
         throw new AppError(403,'Decision maker cannot be investment owner or sponsor');
       if(investment.lifecycle!=='candidate') throw new AppError(409,'Candidate investment required');
+      if(approval){
+        const recommendation=await one(client,`SELECT r.recommendation,r.demand_id,r.investment_id,
+          r.proposed_by,r.basis_snapshot,r.proposed_at
+          FROM m04_selection.selection_recommendation r
+          WHERE r.tenant_id=platform.current_tenant() AND r.id=$1`,[recommendationId]);
+        if(recommendation.recommendation!=='select'||recommendation.proposed_at>session.held_at||
+          (recommendation.demand_id!==null&&recommendation.demand_id!==investment.origin_demand_id)||
+          (recommendation.investment_id!==null&&recommendation.investment_id!==investment.id))
+          throw new AppError(409,'Matching selection recommendation required');
+        const assessment=recommendation.basis_snapshot?.assessment;
+        if(!assessment||recommendation.proposed_by===context.actorId||assessment.assessor_id===context.actorId)
+          throw new AppError(403,'Independent recommendation and assessment required');
+        if(recommendation.demand_id){
+          const latest=await one(client,`SELECT cr.id FROM m03_demand.case_revision cr
+            JOIN m03_demand.business_case bc ON bc.tenant_id=cr.tenant_id AND bc.id=cr.business_case_id
+            WHERE bc.tenant_id=platform.current_tenant() AND bc.demand_id=$1
+            ORDER BY cr.revision_no DESC LIMIT 1`,[recommendation.demand_id]);
+          if(recommendation.basis_snapshot?.case_revision?.id!==latest.id)
+            throw new AppError(409,'Selection recommendation cites stale case evidence');
+        }
+      }
       const decision=await one(client,`INSERT INTO m05_investment.investment_decision
         (tenant_id,decision_body_id,decided_by,investment_id,subject_type,subject_id,decision_type,
-        rationale,decided_at,effective_on)
+        rationale,decided_at,effective_on,recommendation_id,approval_amount,approval_currency)
         VALUES(platform.current_tenant(),$1,platform.current_actor(),$2,'investment',$2,$3,$4,
-        transaction_timestamp(),CURRENT_DATE) RETURNING *`,
-        [session.decision_body_id,investment.id,decisionType,rationale]);
+        transaction_timestamp(),CURRENT_DATE,$5,$6,$7) RETURNING *`,
+        [session.decision_body_id,investment.id,decisionType,rationale,recommendationId,approvalAmount,approvalCurrency]);
       await client.query(`INSERT INTO m05_investment.committee_decision_evidence
         (tenant_id,session_id,decision_id) VALUES(platform.current_tenant(),$1,$2)`,
         [sessionId,decision.id]);
-      return {decision,investmentLifecycle:investment.lifecycle,effectuated:false};
-    },{write:true,context});
+      const recordedConditions=[];
+      for(const obligation of obligations) recordedConditions.push(await one(client,`INSERT INTO m05_investment.decision_condition
+        (tenant_id,decision_id,condition_type,description,due_on)
+        VALUES(platform.current_tenant(),$1,$2,$3,$4::date) RETURNING *`,
+        [decision.id,obligation.conditionType,obligation.description,obligation.dueOn]));
+      return {decision,conditions:recordedConditions,investmentLifecycle:investment.lifecycle,effectuated:false};
+    },{write:true,writeRoles:approval?['approver','administrator']:['contributor','administrator'],context});
   }
   async function committeeDecisionReadiness(context, sessionId) {
     uuid(sessionId,'sessionId');
@@ -646,7 +701,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
         VALUES(platform.current_tenant(),$1,platform.current_actor(),true,$2::jsonb) RETURNING *`,
         [session.id,JSON.stringify({delegates,participants,summary,heldAt,decisionBodyId,investmentId})]);
       return {session,finalisation,summary};
-    },{write:true,context});
+    },{write:true,writeRoles:['contributor','approver','administrator'],context});
   }
   async function committeeSessionEvaluation(context, sessionId) {
     uuid(sessionId,'sessionId');

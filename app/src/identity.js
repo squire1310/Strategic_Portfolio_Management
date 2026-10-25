@@ -4,7 +4,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Prototype-compatible entitlement resolver. Group IDs are stable identifiers,
- * not display names. No group or role may grant formal investment approval.
+ * not display names. A decision-maker entitlement is still subject to database mandate checks.
  */
 export function createGroupResolver(groupMappings = {}) {
   if (!groupMappings || typeof groupMappings !== 'object' || Array.isArray(groupMappings)) throw new Error('Invalid group mappings');
@@ -30,11 +30,12 @@ const PORTFOLIO_READS = Object.freeze(['portfolios', 'categories', 'investments'
 const READ_BUNDLES = Object.freeze({
   executive: STRATEGY_READS, policy: STRATEGY_READS, portfolio_manager: PORTFOLIO_READS,
   engagement_lead: PORTFOLIO_READS, verifier: PORTFOLIO_READS, condition_recorder: PORTFOLIO_READS,
+  decision_maker: PORTFOLIO_READS,
   viewer: [...STRATEGY_READS, ...PORTFOLIO_READS]
 });
 const ROLE_BUNDLES = Object.freeze({
   executive: true, policy: true, portfolio_manager: true,
-  engagement_lead: true, verifier: true, condition_recorder: true, viewer: true
+  engagement_lead: true, verifier: true, condition_recorder: true, decision_maker: true, viewer: true
 });
 
 export function prototypeModeAllowed(env = process.env) {

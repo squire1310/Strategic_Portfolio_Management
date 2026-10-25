@@ -15,6 +15,7 @@ const expected = {
     'membership', 'membership-update', 'membership-remove', 'condition-submit'],
   verifier: ['condition-verify'],
   condition_recorder: ['condition-create'],
+  decision_maker: ['committee-finalise','investment-approve','condition-create'],
   viewer: []
 };
 

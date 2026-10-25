@@ -95,6 +95,30 @@ test('condition creation requires the recorder entitlement', async () => {
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
+test('investment approval requires the decision-maker entitlement', async () => {
+  const calls=[];
+  const store={recordInvestmentDecision:async(body)=>{calls.push(body);return {decision:{id:'approved'},effectuated:false};}};
+  const auth=createAuth([
+    {...account,username:'ordinary-executive',role:'executive',groupIds:undefined},
+    {...account,username:'authorised-decision-maker',role:'decision_maker',groupIds:undefined}
+  ]);
+  const server=createHttpServer(store,{auth});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const origin='http://127.0.0.1:'+server.address().port;
+  try{
+    for(const [username,status] of [['ordinary-executive',403],['authorised-decision-maker',201]]){
+      const login=await fetch(origin+'/api/login',{method:'POST',headers:{origin,'content-type':'application/json'},
+        body:JSON.stringify({username,password})});
+      const cookie=login.headers.get('set-cookie').split(';')[0];
+      const response=await fetch(origin+'/api/investment-decisions/record',{method:'POST',
+        headers:{cookie,origin,'content-type':'application/json'},
+        body:JSON.stringify({decisionType:'approve',sessionId:ACTOR})});
+      assert.equal(response.status,status);
+    }
+    assert.equal(calls.length,1);
+  }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
 test('condition status and evidence history are available to participant roles only', async () => {
   const calls = [];
   const store = {

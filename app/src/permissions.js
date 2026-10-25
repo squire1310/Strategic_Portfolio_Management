@@ -9,13 +9,14 @@ export const roleCommands = Object.freeze({
     'membership', 'membership-update', 'membership-remove', 'condition-submit']),
   verifier: Object.freeze(['condition-verify']),
   condition_recorder: Object.freeze(['condition-create']),
+  decision_maker: Object.freeze(['committee-finalise','investment-approve','condition-create']),
   viewer: Object.freeze([])
 });
 
 export const roleLabels = Object.freeze({
   executive: 'Executive', policy: 'Policy', portfolio_manager: 'Portfolio Manager',
   engagement_lead: 'Engagement Lead', verifier: 'Condition Verifier',
-  condition_recorder: 'Condition Recorder', viewer: 'Viewer'
+  condition_recorder: 'Condition Recorder', decision_maker: 'Decision Maker', viewer: 'Viewer'
 });
 
 export function commandsForRole(role) { return roleCommands[role] || []; }
