@@ -353,6 +353,27 @@ async function loadInbox() {
     line.append(cell);body.append(line);
   }
   table.append(body); container.append(table);
+  await loadCreatedTasks();
+}
+
+async function loadCreatedTasks() {
+  const container=document.getElementById('created-work-items-list'); container.replaceChildren();
+  const response=await fetch('/api/work-items/created'); const items=await response.json();
+  if(!response.ok) throw new Error(items.error || 'Could not load assigned tasks');
+  if(!items.length) { const p=document.createElement('p'); p.className='govuk-body'; p.textContent='No open tasks assigned by you.'; container.append(p); return; }
+  for(const item of items) {
+    const group=document.createElement('div'); group.className='govuk-form-group';
+    const label=document.createElement('label'); label.className='govuk-label'; label.textContent=item.title+' — reassign to principal UUID';
+    const input=document.createElement('input'); input.className='govuk-input'; input.value=item.assignee_id;
+    label.append(input); group.append(label);
+    const button=document.createElement('button'); button.type='button'; button.className='govuk-button govuk-button--secondary'; button.textContent='Reassign';
+    button.addEventListener('click',async()=>{ try {
+      const response=await fetch('/api/work-items/reassign',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:item.id,expectedVersion:item.row_version,assigneeId:input.value.trim()})});
+      const result=await response.json(); if(!response.ok) throw new Error(result.error || 'Could not reassign');
+      show('Task reassigned.'); await loadInbox();
+    }catch(error){show(error.message,'error');} });
+    group.append(button); container.append(group);
+  }
 }
 
 async function viewHistory(key, id) {
