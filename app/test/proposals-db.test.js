@@ -34,14 +34,18 @@ test('B006 independent review returns proposal and permits immutable revision 2'
   await owner.query('INSERT INTO platform.principal(principal_id,subject,display_name) VALUES($1,$2,$3)',[reviewerId,'test:review-'+reviewerId,'Independent reviewer']);
   await owner.query("INSERT INTO platform.tenant_member(tenant_id,principal_id,member_role) VALUES($1,$2,'contributor')",[tenantId,reviewerId]);
   const proposal=await store.proposal('create',{code:'review_'+randomUUID().slice(0,8),title:'Review case'},ctx);
-  const first=await store.proposal('submit',{id:proposal.id,expectedVersion:1,summary:'First',options:[],assumptions:[]},ctx);
+  const first=await store.proposal('submit',{id:proposal.id,expectedVersion:1,summary:'First',options:[],assumptions:[],reviewerId},ctx);
+  assert.ok((await reviewer.workItem('inbox',null,{tenantId,actorId:reviewerId})).some(t=>t.object_id===proposal.id && t.workflow_kind==='proposal_review'));
   await assert.rejects(store.proposal('review',{id:proposal.id,expectedVersion:2,outcome:'return_for_correction',feedback:'Revise'},ctx),
     e=>e instanceof AppError&&e.status===403);
   const returned=await reviewer.proposal('review',{id:proposal.id,expectedVersion:2,outcome:'return_for_correction',feedback:'Clarify benefits'}, {tenantId,actorId:reviewerId});
   assert.equal(returned.proposal.status,'draft');
+  assert.ok((await store.workItem('inbox',null,ctx)).some(t=>t.object_id===proposal.id && t.workflow_kind==='proposal_correction'));
+  assert.ok(!(await reviewer.workItem('inbox',null,{tenantId,actorId:reviewerId})).some(t=>t.object_id===proposal.id && t.workflow_kind==='proposal_review' && t.state==='open'));
   assert.equal(returned.review.case_revision_id,first.revision.id);
   const second=await store.proposal('submit',{id:proposal.id,expectedVersion:3,summary:'Revised',options:[],assumptions:[]},ctx);
   assert.equal(second.revision.revision_no,2);
+  assert.ok(!(await store.workItem('inbox',null,ctx)).some(t=>t.object_id===proposal.id && t.workflow_kind==='proposal_correction' && t.state==='open'));
   assert.notEqual(second.revision.id,first.revision.id);
  } finally {await Promise.all([store.close(),reviewer.close()]);await owner.end();}
 });
