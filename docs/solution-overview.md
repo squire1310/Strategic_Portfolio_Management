@@ -157,3 +157,7 @@ The [domain decisions](../reconciled-core/docs/domain-decisions-v1.0.md) and [im
 The product owner accepted seven design positions for a balanced multi-persona experience; see the [UX design decision record](ux-design-decisions.md). The [User Role and Persona Catalogue v1.0](user-role-persona-catalogue-v1.0.md) defines 18 business personas, six experience archetypes and six initial prototype anchors, separating persona needs from scoped permissions and delegated decision authority. The [End-to-End User Journey Catalogue v1.0](user-journey-catalogue-v1.0.md) defines J01–J11, cross-role handoffs, decision gates, exceptions and UX-001–UX-036 requirements.
 
 These documents are design/research inputs, not claims of implemented capability. Their architecture references must use this document's authoritative M01–M06 native core and M07–M12 extensible boundaries. Any impacts on the domain schema, workflows or code require separate reconciliation and approval.
+
+## Business governance and decision rights (25 October 2026)
+
+The [Business Rules, Decision Rights and Governance Model v1.0](business-rules-decision-rights-governance-v1.0.md) defines proposed operational rules, formal authority checking, segregation of duties, condition clearance, escalation, governance profiles and acceptance criteria based on the approved D01–D10 domain decisions. It is a design document for review, not a declaration that these controls are implemented or that tenant legal delegations have been established.
