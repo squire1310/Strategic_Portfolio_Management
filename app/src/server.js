@@ -14,7 +14,7 @@ const files = {
   '/login.js': ['login.js', 'text/javascript; charset=utf-8'],
   '/govuk.css': ['govuk.css', 'text/css; charset=utf-8']
 };
-const workspacePages = new Set(['/', '/strategy', '/policy', '/portfolios', '/investments', '/history', '/inbox']);
+const workspacePages = new Set(['/', '/strategy', '/policy', '/portfolios', '/investments', '/history', '/inbox', '/proposals']);
 
 function respond(res, status, body, contentType = 'application/json; charset=utf-8', extraHeaders = {}) {
   res.writeHead(status, {
@@ -84,6 +84,13 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         strategyScope = assignments.strategyIds;
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
+      if (req.method === 'GET' && ['/api/proposals/mine','/api/proposals/review-queue'].includes(path)) {
+        if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped proposal permissions are not yet implemented');
+        const reviewer=path.endsWith('review-queue');
+        if (reviewer ? !session.user.allowedCommands.includes('portfolio-update') : !session.user.allowedCommands.includes('investment'))
+          throw new AppError(403,'Proposal list permission required');
+        return respond(res,200,await store.proposalList(session.context,reviewer));
+      }
       if (req.method === 'POST' && path.startsWith('/api/proposals/')) {
         if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped proposal permissions are not yet implemented');
         const action=path.slice('/api/proposals/'.length);
