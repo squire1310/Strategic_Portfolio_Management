@@ -92,3 +92,7 @@ Keep the previously agreed Increment 1 (US-001–US-004) build scope as-is until
 - Architecture review of C01–C08 and explicit approved backlog before migrations or application work.
 
 **Disposition:** Gap analysis ready for review. No model, database or application change is authorised by this document.
+
+## Domain design reconciliation (25 October 2026)
+
+The [Domain Design Reconciliation and Decision Record v1.0](domain-design-reconciliation-decisions-v1.0.md) proposes dispositions for C01–C08: pre-investment formal decisions, condition ownership, work-item handoffs, Entra entitlement mapping, committee evidence, cross-module effectuation, v1.1 strategic risk and derived UX states. **These recommendations await explicit ratification**; approved D01–D10 and existing implementation scope are unchanged.
