@@ -13,6 +13,7 @@ const expected = {
     'category', 'category-update', 'category-retire', 'alignment', 'alignment-remove'],
   engagement_lead: ['investment', 'investment-update', 'investment-retire',
     'membership', 'membership-update', 'membership-remove'],
+  verifier: ['condition-verify'],
   viewer: []
 };
 

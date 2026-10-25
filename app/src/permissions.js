@@ -7,12 +7,13 @@ export const roleCommands = Object.freeze({
     'category', 'category-update', 'category-retire', 'alignment', 'alignment-remove']),
   engagement_lead: Object.freeze(['investment', 'investment-update', 'investment-retire',
     'membership', 'membership-update', 'membership-remove']),
+  verifier: Object.freeze(['condition-verify']),
   viewer: Object.freeze([])
 });
 
 export const roleLabels = Object.freeze({
   executive: 'Executive', policy: 'Policy', portfolio_manager: 'Portfolio Manager',
-  engagement_lead: 'Engagement Lead', viewer: 'Viewer'
+  engagement_lead: 'Engagement Lead', verifier: 'Condition Verifier', viewer: 'Viewer'
 });
 
 export function commandsForRole(role) { return roleCommands[role] || []; }
