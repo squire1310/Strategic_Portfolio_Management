@@ -161,6 +161,24 @@
     <section class="app-section" id="inbox" hidden>
       <h2 class="govuk-heading-l">My work items</h2>
       <p class="govuk-body">Business workflow tasks assigned to you. Overdue items are flagged below.</p>
+      <form id="work-item-create" class="app-form">
+        <h3 class="govuk-heading-m">Assign a business task</h3>
+        <div class="govuk-form-group"><label class="govuk-label" for="task-target-type">Object type</label>
+          <select class="govuk-select" id="task-target-type" name="objectType" required>
+            <option value="portfolio">Portfolio</option><option value="strategy">Strategy</option>
+          </select></div>
+        <div class="govuk-form-group"><label class="govuk-label" for="task-target">Business object</label>
+          <select class="govuk-select" id="task-target" name="objectId" required></select></div>
+        <div class="govuk-form-group"><label class="govuk-label" for="task-title">Task title</label>
+          <input class="govuk-input" id="task-title" name="title" maxlength="200" required></div>
+        <div class="govuk-form-group"><label class="govuk-label" for="task-assignee">Assignee's principal UUID</label>
+          <input class="govuk-input" id="task-assignee" name="assigneeId" required pattern="[0-9a-fA-F-]{36}">
+          <div class="govuk-hint">Prototype only: use the principal ID of an active tenant member.</div></div>
+        <div class="govuk-form-group"><label class="govuk-label" for="task-due">Due date (optional)</label>
+          <input class="govuk-input govuk-input--width-10" id="task-due" name="dueOn" type="date"></div>
+        <button class="govuk-button" type="submit">Assign task</button>
+      </form>
+      <h3 class="govuk-heading-m">Assigned to me</h3>
       <div id="work-items-list" aria-live="polite"></div>
     </section>
     <section class="app-section" id="history" hidden><h2 class="govuk-heading-l">History and attribution</h2><p class="govuk-body">Select “History” on any record to inspect its saved versions and audit events.</p><div id="history-list"></div></section>
