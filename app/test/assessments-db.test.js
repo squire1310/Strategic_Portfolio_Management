@@ -28,6 +28,7 @@ test('B008 independent assessment and criterion coverage', {skip:!process.env.SP
   await db.query("UPDATE m04_selection.scoring_model SET status='active' WHERE tenant_id=$1 AND id=$2",[tenantId,modelId]);
   await assert.rejects(owner.assessment('create',{demandId:draft.id,scoringModelId:modelId},ownCtx),e=>e instanceof AppError&&e.status===403);
   const assessment=await assessor.assessment('create',{demandId:draft.id,scoringModelId:modelId},ctx);
+  assert.ok(assessment.case_revision_id,'assessment must cite immutable case revision');
   await assert.rejects(assessor.assessment('complete',{id:assessment.id,expectedVersion:1,rationale:'Premature'},ctx),e=>e instanceof AppError&&e.status===409);
   const saved=await assessor.assessment('score',{id:assessment.id,expectedVersion:1,criterionId:criterion.rows[0].id,score:7,evidence:'Documented evidence'},ctx);
   assert.equal(Number(saved.score.score),7);
