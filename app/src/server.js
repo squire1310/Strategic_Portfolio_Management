@@ -89,6 +89,11 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Scenario permission required');
         return respond(res,200,await store.scenarioRanking(session.context,path.split('/')[3]));
       }
+      if(req.method==='POST' && path==='/api/conditions/evidence') {
+        if(portfolioScope!==null||strategyScope!==null) throw new AppError(403,'Scoped condition evidence submission not configured');
+        if(!session.user.allowedCommands.includes('condition-submit')) throw new AppError(403,'Condition submitter permission required');
+        return respond(res,201,await store.submitConditionEvidence(await jsonBody(req),session.context));
+      }
       if(req.method==='POST' && path==='/api/conditions/verify') {
         if(portfolioScope!==null||strategyScope!==null) throw new AppError(403,'Scoped condition verification not configured');
         if(!session.user.allowedCommands.includes('condition-verify')) throw new AppError(403,'Verifier functional permission required');

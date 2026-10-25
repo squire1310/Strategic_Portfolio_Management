@@ -48,6 +48,30 @@ test('condition verification requires the dedicated verifier entitlement', async
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
+test('condition evidence submission requires the submitter entitlement', async () => {
+  const calls = [];
+  const store = { submitConditionEvidence: async (body, context) => { calls.push({ body, context }); return { id: 'submission' }; } };
+  const auth = createAuth([
+    { ...account, username: 'evidence-owner', role: 'engagement_lead', groupIds: undefined },
+    { ...account, username: 'evidence-verifier', role: 'verifier', groupIds: undefined }
+  ]);
+  const server = createHttpServer(store, { auth });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    for (const [username, status] of [['evidence-verifier', 403], ['evidence-owner', 201]]) {
+      const login = await fetch(origin + '/api/login', { method: 'POST', headers: { origin, 'content-type': 'application/json' },
+        body: JSON.stringify({ username, password }) });
+      const cookie = login.headers.get('set-cookie').split(';')[0];
+      const response = await fetch(origin + '/api/conditions/evidence', { method: 'POST',
+        headers: { cookie, origin, 'content-type': 'application/json' }, body: JSON.stringify({ conditionId: ACTOR }) });
+      assert.equal(response.status, status);
+    }
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].context.actorId, ACTOR);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
 test('prototype mode rejects production and unimplemented Entra provider', () => {
   assert.equal(prototypeModeAllowed({ SPM_IDENTITY_PROVIDER: 'prototype', SPM_DEPLOYMENT_ENV: 'test' }), true);
   assert.throws(() => prototypeModeAllowed({ SPM_IDENTITY_PROVIDER: 'prototype', SPM_DEPLOYMENT_ENV: 'production' }));

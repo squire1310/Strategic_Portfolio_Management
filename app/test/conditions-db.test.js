@@ -43,22 +43,33 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.equal(result.overdueSubsequents,1);
   assert.equal(result.conditions.find(c=>c.id===subsequent.rows[0].id).overdue,true);
   assert.equal(result.commitmentReady,false);
-  const payload={conditionId:condition.rows[0].id,result:'satisfied',evidenceReference:'synthetic:independent-proof'};
+  const submitted=await store.submitConditionEvidence({conditionId:condition.rows[0].id,
+    evidenceReference:'synthetic:independent-proof'},{tenantId:tenant,actorId:actor});
+  assert.equal(submitted.submitted_by,actor);
+  const payload={conditionId:condition.rows[0].id,submissionId:submitted.id,result:'satisfied'};
+  await assert.rejects(verifierStore.verifyDecisionCondition({conditionId:condition.rows[0].id,result:'satisfied'},
+    {tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===400);
+  await assert.rejects(verifierStore.submitConditionEvidence({conditionId:condition.rows[0].id,
+    evidenceReference:'synthetic:self-submitted'},{tenantId:tenant,actorId:verifier}),
+    e=>e instanceof AppError&&e.status===403);
+  await assert.rejects(admin.query(`UPDATE m05_investment.condition_evidence_submission SET evidence_reference='changed'
+    WHERE tenant_id=$1 AND id=$2`,[tenant,submitted.id]),/Decision condition evidence is immutable/);
   await assert.rejects(otherStore.decisionConditionReadiness({tenantId:otherTenant,actorId:otherActor},decision.rows[0].id),
     e=>e instanceof AppError&&e.status===404);
   await assert.rejects(otherStore.verifyDecisionCondition(payload,{tenantId:otherTenant,actorId:otherActor}),
     e=>e instanceof AppError&&e.status===404);
   await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
-  const direct=async (actingAs,verifiedBy,verifiedAt=null,mandateId=null)=>{
+  const direct=async (actingAs,verifiedBy,verifiedAt=null,mandateId=null,submissionId=submitted.id)=>{
     const client=new pg.Client({connectionString:process.env.SPM_TEST_DATABASE_URL});
     await client.connect();
     try {
       await client.query('BEGIN');
       await client.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true)",[tenant,actingAs]);
       return await client.query(`INSERT INTO m05_investment.condition_verification
-        (tenant_id,condition_id,verified_by,result,evidence_reference,verified_at,mandate_id)
-        VALUES($1,$2,$3,'satisfied','synthetic:direct-bypass',COALESCE($4::timestamptz,now()),$5)
-        RETURNING verified_at,mandate_id`,[tenant,condition.rows[0].id,verifiedBy,verifiedAt,mandateId]);
+        (tenant_id,condition_id,verified_by,result,evidence_reference,verified_at,mandate_id,submission_id)
+        VALUES($1,$2,$3,'satisfied','synthetic:direct-bypass',COALESCE($4::timestamptz,now()),$5,$6)
+        RETURNING verified_at,mandate_id,evidence_reference,submission_id`,
+        [tenant,condition.rows[0].id,verifiedBy,verifiedAt,mandateId,submissionId]);
     } finally {await client.query('ROLLBACK');await client.end();}
   };
   await assert.rejects(direct(verifier,verifier),/Effective verifier mandate required/);
@@ -69,24 +80,32 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   const evidence=await verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier});
   assert.equal(evidence.result,'satisfied');
   assert.equal(evidence.mandate_id,mandate.rows[0].id);
+  assert.equal(evidence.submission_id,submitted.id);
+  assert.equal(evidence.evidence_reference,submitted.evidence_reference);
   await assert.rejects(admin.query(`UPDATE m05_investment.condition_verification SET result='not_satisfied'
     WHERE tenant_id=$1 AND id=$2`,[tenant,evidence.id]),/Decision condition evidence is immutable/);
   const forgedTime=await direct(verifier,verifier,'9999-01-01T00:00:00Z',randomUUID());
   assert.ok(forgedTime.rows[0].verified_at.getTime()<=Date.now());
   assert.ok(forgedTime.rows[0].verified_at.getTime()>=Date.now()-60_000);
   assert.equal(forgedTime.rows[0].mandate_id,mandate.rows[0].id);
+  assert.equal(forgedTime.rows[0].evidence_reference,submitted.evidence_reference);
+  await assert.rejects(direct(verifier,verifier,null,null,null),/Independent condition evidence submission required/);
   await assert.rejects(direct(actor,verifier),/Verification actor and tenant context required/);
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,0);
   assert.equal(result.precedentClearance,true);
   assert.equal(result.commitmentReady,false);
   assert.equal(result.effectuationPerformed,false);
-  const later={conditionId:subsequent.rows[0].id,result:'satisfied',evidenceReference:'synthetic:monitoring-proof'};
+  const subsequentSubmission=await store.submitConditionEvidence({conditionId:subsequent.rows[0].id,
+    evidenceReference:'synthetic:monitoring-proof'},{tenantId:tenant,actorId:actor});
+  await assert.rejects(direct(verifier,verifier,null,null,subsequentSubmission.id),
+    /Independent condition evidence submission required/);
+  const later={conditionId:subsequent.rows[0].id,submissionId:subsequentSubmission.id,result:'satisfied'};
   await verifierStore.verifyDecisionCondition(later,{tenantId:tenant,actorId:verifier});
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingSubsequents,0);
   assert.equal(result.overdueSubsequents,0);
-  await verifierStore.verifyDecisionCondition({...later,result:'not_satisfied',evidenceReference:'synthetic:monitoring-regression'},
+  await verifierStore.verifyDecisionCondition({...later,result:'not_satisfied'},
     {tenantId:tenant,actorId:verifier});
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingSubsequents,1);

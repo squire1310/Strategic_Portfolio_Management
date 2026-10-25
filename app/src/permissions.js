@@ -6,7 +6,7 @@ export const roleCommands = Object.freeze({
   portfolio_manager: Object.freeze(['portfolio', 'portfolio-update', 'portfolio-parent', 'portfolio-retire',
     'category', 'category-update', 'category-retire', 'alignment', 'alignment-remove']),
   engagement_lead: Object.freeze(['investment', 'investment-update', 'investment-retire',
-    'membership', 'membership-update', 'membership-remove']),
+    'membership', 'membership-update', 'membership-remove', 'condition-submit']),
   verifier: Object.freeze(['condition-verify']),
   viewer: Object.freeze([])
 });

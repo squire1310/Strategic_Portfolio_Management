@@ -12,7 +12,7 @@ const expected = {
   portfolio_manager: ['portfolio', 'portfolio-update', 'portfolio-parent', 'portfolio-retire',
     'category', 'category-update', 'category-retire', 'alignment', 'alignment-remove'],
   engagement_lead: ['investment', 'investment-update', 'investment-retire',
-    'membership', 'membership-update', 'membership-remove'],
+    'membership', 'membership-update', 'membership-remove', 'condition-submit'],
   verifier: ['condition-verify'],
   viewer: []
 };
