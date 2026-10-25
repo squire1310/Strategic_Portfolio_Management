@@ -84,6 +84,13 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         strategyScope = assignments.strategyIds;
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
+      if (req.method === 'POST' && path.startsWith('/api/proposals/')) {
+        if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped proposal permissions are not yet implemented');
+        if (!session.user.allowedCommands.includes('investment')) throw new AppError(403,'Proposal intake permission required');
+        const action=path.slice('/api/proposals/'.length);
+        if (!['create','edit','submit'].includes(action)) throw new AppError(404,'Unknown proposal action');
+        return respond(res,201,await store.proposal(action,await jsonBody(req),session.context));
+      }
       if (req.method === 'GET' && path === '/api/work-items/created') return respond(res,200,await store.workItem('created',null,session.context,portfolioScope,strategyScope));
       if (req.method === 'GET' && path === '/api/work-items/inbox') {
         return respond(res,200,await store.workItem('inbox',null,session.context,portfolioScope,strategyScope));
