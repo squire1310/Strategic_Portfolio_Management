@@ -31,6 +31,10 @@ test('B008 independent assessment and criterion coverage', {skip:!process.env.SP
   await assert.rejects(assessor.assessment('complete',{id:assessment.id,expectedVersion:1,rationale:'Premature'},ctx),e=>e instanceof AppError&&e.status===409);
   const saved=await assessor.assessment('score',{id:assessment.id,expectedVersion:1,criterionId:criterion.rows[0].id,score:7,evidence:'Documented evidence'},ctx);
   assert.equal(Number(saved.score.score),7);
+  const results=await assessor.assessmentResults(ctx,assessment.id);
+  assert.equal(results.complete,true);
+  assert.equal(results.weightedTotal,70);
+  assert.equal(results.criteria.length,1);
   const completed=await assessor.assessment('complete',{id:assessment.id,expectedVersion:2,rationale:'Assessed independently'},ctx);
   assert.equal(completed.status,'completed');
   await assert.rejects(assessor.assessment('score',{id:assessment.id,expectedVersion:3,criterionId:criterion.rows[0].id,score:8,evidence:'Late'},ctx),e=>e instanceof AppError&&e.status===409);
