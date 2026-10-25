@@ -319,3 +319,7 @@ Milestone order is proposed and cross-dependencies are authoritative; a foundati
 An item is ready only if: accountable engineering owner allocated; source decision/gap traced; authoritative domain entity and module write owner identified; schema change reviewed; command preconditions and denial codes specified; CI automated tests designed; prototype-versus-production security limits stated; and the work does not silently expand Increment 1.
 
 **Next planning task:** review this backlog, ratify specific work items for the next increment, allocate ownership, and prepare individual technical change specifications. No application or database mutations are authorised by this document.
+
+## Detailed M0/M1 increment specification
+
+[Build Increment 2 — Identity and Authorisation Foundation](build-increment-2-identity-foundation.md) defines the sequenced M0 baseline verification and M1 Entra-compatible synthetic identity, group mapping, scoped command authorisation and 16 acceptance tests. It is a proposed engineering scope; it does not supersede US-001–US-004 or authorise code/migrations.
