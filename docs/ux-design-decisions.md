@@ -30,3 +30,7 @@ Recommendation ≠ endorsement ≠ funding approval ≠ baseline effectuation. F
 - [Investment-to-decision screen inventory and interaction specification v1.0](investment-decision-screen-interaction-spec-v1.0.md): 14 conceptual screens, role-based information hierarchies, five prototype walkthroughs and user-research checks.
 
 Both are specifications awaiting usability validation; no app or schema changes are authorised.
+
+## Governance rules design (25 October 2026)
+
+[Business Rules, Decision Rights and Governance Model v1.0](business-rules-decision-rights-governance-v1.0.md) translates the approved D01–D10 domain decisions and J01–J11 journeys into an operating rules model, authority/SoD matrix, policy configuration catalogue, exception routes and GOV-T01–T18 acceptance tests. Additional BR rules are **proposed**, not ratified; no schema or code changes are authorised.
