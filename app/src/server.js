@@ -84,6 +84,7 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         strategyScope = assignments.strategyIds;
       }
       if (req.method === 'GET' && path === '/api/session') return respond(res, 200, session.user);
+      if (req.method === 'GET' && path === '/api/work-items/created') return respond(res,200,await store.workItem('created',null,session.context,portfolioScope,strategyScope));
       if (req.method === 'GET' && path === '/api/work-items/inbox') {
         return respond(res,200,await store.workItem('inbox',null,session.context,portfolioScope,strategyScope));
       }
