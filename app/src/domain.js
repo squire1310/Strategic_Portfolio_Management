@@ -431,11 +431,21 @@ export function createStore({ connectionString, tenantId, actorId }) {
           throw new AppError(409,'Completed compatible assessment required');
         const outcome=requiredText(body.outcome,'outcome',10);
         if(!['select','defer','reject'].includes(outcome)) throw new AppError(400,'Unsupported recommendation');
+        const aggregate=await client.query(`SELECT round(sum(cs.score/c.maximum_score*c.weight*100)::numeric,4) AS total,
+          count(*)::int AS scored FROM m04_selection.criterion_score cs
+          JOIN m04_selection.criterion c ON c.tenant_id=cs.tenant_id AND c.id=cs.criterion_id
+          WHERE cs.tenant_id=platform.current_tenant() AND cs.assessment_id=$1`,[assessmentId]);
+        if(!aggregate.rows[0].scored) throw new AppError(409,'Assessment has no scores');
+        const inclusion={select:'selected',defer:'considered',reject:'excluded'}[outcome];
         const candidate=await one(client,`INSERT INTO m04_selection.scenario_candidate
-          (tenant_id,scenario_id,demand_id,assessment_id)
-          VALUES(platform.current_tenant(),$1,$2,$3)
-          ON CONFLICT(tenant_id,scenario_id,demand_id) DO UPDATE SET assessment_id=EXCLUDED.assessment_id RETURNING *`,
-          [scenarioId,assessment.demand_id,assessmentId]);
+          (tenant_id,scenario_id,demand_id,assessment_id,aggregate_score,inclusion)
+          VALUES(platform.current_tenant(),$1,$2,$3,$4,$5)
+          ON CONFLICT(tenant_id,scenario_id,demand_id) DO UPDATE
+          SET assessment_id=EXCLUDED.assessment_id,aggregate_score=EXCLUDED.aggregate_score,
+              inclusion=EXCLUDED.inclusion RETURNING *`,
+          [scenarioId,assessment.demand_id,assessmentId,aggregate.rows[0].total,inclusion]);
+        await client.query(`UPDATE m04_selection.scenario SET status='locked'
+          WHERE tenant_id=platform.current_tenant() AND id=$1`,[scenarioId]);
         const result=await one(client,`INSERT INTO m04_selection.selection_recommendation
           (tenant_id,scenario_id,demand_id,recommendation,rationale,proposed_by)
           VALUES(platform.current_tenant(),$1,$2,$3,$4,platform.current_actor()) RETURNING *`,
