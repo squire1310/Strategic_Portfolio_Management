@@ -231,3 +231,7 @@ A single person may appear in several sessions but must act under distinct scope
 ## 14. Next work package
 
 **Business Object Lifecycle and Transition Matrices v1.0:** draft/submit/review/recommend/decide/effectuate/correct/withdraw states for M01–M06, mandatory guards, actors, auditable actions, successor semantics and exception branches. The matrices must implement D09 and reference the governance rules above. No schema/application modifications until reconciled and reviewed.
+
+## Entra ID and prototype access design (25 October 2026)
+
+The organisation uses **Microsoft Entra ID and security groups** for application access. The [Entra identity and prototype stub design v1.0](entra-identity-access-prototype-design-v1.0.md) defines a production OIDC integration, group/app-role mapping to SPM permissions, independent scoped business roles and approval authorities, and an isolated synthetic identity provider for the prototype. No internal Entra access is assumed; no code, migration or live IAM configuration has been changed.
