@@ -152,3 +152,8 @@ The [domain decisions](../reconciled-core/docs/domain-decisions-v1.0.md) and [im
 
 **Working assumptions to validate:** versioned case and envelope evidence contracts; the new M06 risk/appetite entities; each tenant's service tier, operating targets, source-of-authority matrix, workflow/delegation settings, records schedule and residency; and which M07–M12 capabilities are native at launch. UK-specific approval routes apply only where a tenant enables and validates the relevant profile. The requirements and this overview describe target behaviour, not a production-ready service.
 
+## User roles and experience-design baseline (25 October 2026)
+
+The product owner accepted seven design positions for a balanced multi-persona experience; see the [UX design decision record](ux-design-decisions.md). The [User Role and Persona Catalogue v1.0](user-role-persona-catalogue-v1.0.md) defines 18 business personas, six experience archetypes and six initial prototype anchors, separating persona needs from scoped permissions and delegated decision authority. The [End-to-End User Journey Catalogue v1.0](user-journey-catalogue-v1.0.md) defines J01–J11, cross-role handoffs, decision gates, exceptions and UX-001–UX-036 requirements.
+
+These documents are design/research inputs, not claims of implemented capability. Their architecture references must use this document's authoritative M01–M06 native core and M07–M12 extensible boundaries. Any impacts on the domain schema, workflows or code require separate reconciliation and approval.
