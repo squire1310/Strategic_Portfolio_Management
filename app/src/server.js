@@ -89,6 +89,11 @@ export function createHttpServer(store, { auth = authFromEnvironment(), publicOr
         if (!session.user.allowedCommands.includes('portfolio-update')) throw new AppError(403,'Scenario permission required');
         return respond(res,200,await store.scenarioRanking(session.context,path.split('/')[3]));
       }
+      if (req.method === 'GET' && /^\/api\/committee-sessions\/[0-9a-f-]{36}\/decision-readiness$/.test(path)) {
+        if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped committee authority not configured');
+        if (!session.user.allowedCommands.includes('strategy-update')) throw new AppError(403,'Governance evidence permission required');
+        return respond(res,200,await store.committeeDecisionReadiness(session.context,path.split('/')[3]));
+      }
       if (req.method === 'POST' && path === '/api/committee-sessions/finalise') {
         if (portfolioScope !== null || strategyScope !== null) throw new AppError(403,'Scoped committee authority not configured');
         if (!session.user.allowedCommands.includes('strategy-update')) throw new AppError(403,'Committee chair permission required');
