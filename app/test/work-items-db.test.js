@@ -11,6 +11,8 @@ test('B005 work item lifecycle and inbox on PostgreSQL', {skip:!process.env.SPM_
   await assert.rejects(store.workItem('create',{objectType:'portfolio',objectId:p.id,title:'Out of scope',assigneeId:actorId},ctx,[],[]),e=>e instanceof AppError&&e.status===403);
   const item=await store.workItem('create',{objectType:'portfolio',objectId:p.id,title:'Review portfolio',assigneeId:actorId,dueOn:'2026-12-01'},ctx);
   assert.equal(item.state,'open');
+  assert.ok((await store.workItem('created',null,ctx,[p.id],[])).some(x=>x.id===item.id));
+  assert.ok(!(await store.workItem('created',null,ctx,[],[])).some(x=>x.id===item.id));
   assert.ok((await store.workItem('inbox',null,ctx,[p.id],[])).some(x=>x.id===item.id));
   assert.ok(!(await store.workItem('inbox',null,ctx,[],[])).some(x=>x.id===item.id));
   await assert.rejects(store.workItem('complete',{id:item.id,expectedVersion:1,note:'denied'},ctx,[],[]),e=>e instanceof AppError&&e.status===404);
