@@ -8,8 +8,12 @@ test('B005 work item lifecycle and inbox on PostgreSQL', {skip:!process.env.SPM_
  const ctx={tenantId,actorId};
  try{
   const p=await store.command('portfolio',{code:'task_'+randomUUID().slice(0,8),name:'Task target'});
+  await assert.rejects(store.workItem('create',{objectType:'portfolio',objectId:p.id,title:'Out of scope',assigneeId:actorId},ctx,[],[]),e=>e instanceof AppError&&e.status===403);
   const item=await store.workItem('create',{objectType:'portfolio',objectId:p.id,title:'Review portfolio',assigneeId:actorId,dueOn:'2026-12-01'},ctx);
   assert.equal(item.state,'open');
+  assert.ok((await store.workItem('inbox',null,ctx,[p.id],[])).some(x=>x.id===item.id));
+  assert.ok(!(await store.workItem('inbox',null,ctx,[],[])).some(x=>x.id===item.id));
+  await assert.rejects(store.workItem('complete',{id:item.id,expectedVersion:1,note:'denied'},ctx,[],[]),e=>e instanceof AppError&&e.status===404);
   assert.ok((await store.workItem('inbox',null,ctx)).some(x=>x.id===item.id));
   const moved=await store.workItem('reassign',{id:item.id,expectedVersion:1,assigneeId:actorId},ctx);
   assert.equal(moved.row_version,2);
