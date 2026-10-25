@@ -418,7 +418,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
          WHERE ir.tenant_id=d.tenant_id AND ir.demand_id=d.id
          ORDER BY ir.reviewed_at DESC LIMIT 1) AS latest_feedback
         FROM m03_demand.demand d WHERE d.tenant_id=platform.current_tenant()
-        AND (CASE WHEN $1::boolean THEN d.status='submitted' AND d.submitted_by<>platform.current_actor()
+        AND (CASE WHEN $1::boolean THEN d.status IN ('submitted','triage') AND d.submitted_by<>platform.current_actor()
                   ELSE d.submitted_by=platform.current_actor() END)
         ORDER BY d.created_at DESC LIMIT 200`,[reviewer]);
       return rows.rows;
