@@ -407,6 +407,44 @@ export function createStore({ connectionString, tenantId, actorId }) {
       return { revisions, audit };
     }, { context });
   }
+  async function recommendation(action, body, context) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
+    return transaction(async client => {
+      if(action==='create-scenario') {
+        const modelId=uuid(body.scoringModelId,'scoringModelId');
+        await one(client,`SELECT id FROM m04_selection.scoring_model WHERE tenant_id=platform.current_tenant()
+          AND id=$1 AND status='active'`,[modelId],'Active scoring model required');
+        return one(client,`INSERT INTO m04_selection.scenario
+          (tenant_id,code,name,scoring_model_id,owner_id)
+          VALUES(platform.current_tenant(),$1,$2,$3,platform.current_actor()) RETURNING *`,
+          [code(body.code),requiredText(body.name,'name',200),modelId]);
+      }
+      if(action==='recommend') {
+        const scenarioId=uuid(body.scenarioId,'scenarioId'), assessmentId=uuid(body.assessmentId,'assessmentId');
+        const scenario=await one(client,`SELECT * FROM m04_selection.scenario
+          WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[scenarioId]);
+        if(scenario.owner_id!==context.actorId) throw new AppError(403,'Scenario owner required');
+        if(scenario.status!=='draft') throw new AppError(409,'Scenario is locked');
+        const assessment=await one(client,`SELECT * FROM m04_selection.assessment
+          WHERE tenant_id=platform.current_tenant() AND id=$1`,[assessmentId]);
+        if(assessment.status!=='completed'||assessment.scoring_model_id!==scenario.scoring_model_id)
+          throw new AppError(409,'Completed compatible assessment required');
+        const outcome=requiredText(body.outcome,'outcome',10);
+        if(!['select','defer','reject'].includes(outcome)) throw new AppError(400,'Unsupported recommendation');
+        const candidate=await one(client,`INSERT INTO m04_selection.scenario_candidate
+          (tenant_id,scenario_id,demand_id,assessment_id)
+          VALUES(platform.current_tenant(),$1,$2,$3)
+          ON CONFLICT(tenant_id,scenario_id,demand_id) DO UPDATE SET assessment_id=EXCLUDED.assessment_id RETURNING *`,
+          [scenarioId,assessment.demand_id,assessmentId]);
+        const result=await one(client,`INSERT INTO m04_selection.selection_recommendation
+          (tenant_id,scenario_id,demand_id,recommendation,rationale,proposed_by)
+          VALUES(platform.current_tenant(),$1,$2,$3,$4,platform.current_actor()) RETURNING *`,
+          [scenarioId,assessment.demand_id,outcome,requiredText(body.rationale,'rationale',2000)]);
+        return {candidate,recommendation:result};
+      }
+      throw new AppError(404,'Unknown recommendation action');
+    },{write:true,context});
+  }
   async function assessmentResults(context, id) {
     uuid(id,'id');
     return transaction(async client => {
@@ -659,7 +697,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, close: () => pool.end() };
 }
 
 export function httpError(error) {
