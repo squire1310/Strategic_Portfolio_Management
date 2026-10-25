@@ -36,10 +36,10 @@ export function createAuth(users, { groupMappings = {}, requireGroups = false } 
     }
     if (user.groupIds !== undefined || requireGroups) validatePrototypeAccount({ ...user, groupIds: user.groupIds ?? [] });
     if (requireGroups && !user.groupIds?.length) throw new Error('Prototype accounts must have a mapped group');
-    const entitlements = user.groupIds ? resolveGroups(user.groupIds) : { commands: commandsForRole(user.role) };
+    const entitlements = user.groupIds ? resolveGroups(user.groupIds) : { commands: commandsForRole(user.role), readKeys: null };
     byName.set(user.username, { username: user.username, displayName: user.displayName || user.username,
       tenantId: user.tenantId, actorId: user.actorId, role: user.role, passwordHash: user.passwordHash,
-      groupIds: user.groupIds || [], requireGroups, allowedCommands: entitlements.commands });
+      groupIds: user.groupIds || [], requireGroups, allowedCommands: entitlements.commands, readKeys: entitlements.readKeys });
   }
   const sessions = new Map();
   const failures = new Map();
@@ -72,8 +72,9 @@ export function createAuth(users, { groupMappings = {}, requireGroups = false } 
     if (session.expires <= Date.now()) { sessions.delete(token); return null; }
     const current = byName.get(session.user.username);
     if (!current) return null;
-    const refreshed = current.requireGroups ? resolveGroups(current.groupIds).commands : current.allowedCommands;
-    return { token, user: publicUser({ ...current, allowedCommands: refreshed }), context: { tenantId: current.tenantId, actorId: current.actorId }, hasAppAccess: !current.requireGroups || resolveGroups(current.groupIds).bundles.length > 0 };
+    const entitlement = current.requireGroups ? resolveGroups(current.groupIds) : { commands: current.allowedCommands, readKeys: current.readKeys };
+    const refreshed = entitlement.commands;
+    return { token, user: publicUser({ ...current, allowedCommands: refreshed, readKeys: entitlement.readKeys }), context: { tenantId: current.tenantId, actorId: current.actorId }, hasAppAccess: !current.requireGroups || resolveGroups(current.groupIds).bundles.length > 0 };
   }
 
   function logout(token) { if (token) sessions.delete(token); }
@@ -88,7 +89,7 @@ export function createAuth(users, { groupMappings = {}, requireGroups = false } 
 }
 
 function publicUser(user) { return { username: user.username, displayName: user.displayName,
-  role: user.role, allowedCommands: user.allowedCommands ?? commandsForRole(user.role) }; }
+  role: user.role, allowedCommands: user.allowedCommands ?? commandsForRole(user.role), readKeys: user.readKeys ?? null }; }
 
 export function authFromEnvironment() {
   prototypeModeAllowed();
