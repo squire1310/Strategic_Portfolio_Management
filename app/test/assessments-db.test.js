@@ -42,7 +42,7 @@ test('B008 independent assessment and criterion coverage', {skip:!process.env.SP
   const recommendation=await assessor.recommendation('recommend',{scenarioId:scenario.id,assessmentId:assessment.id,outcome:'defer',rationale:'Further validation required'},ctx);
   assert.equal(recommendation.recommendation.recommendation,'defer');
   assert.equal(recommendation.recommendation.demand_id,draft.id);
-  await assert.rejects(assessor.recommendation('recommend',{scenarioId:scenario.id,assessmentId:assessment.id,outcome:'invalid',rationale:'Bad'},ctx),e=>e instanceof AppError&&e.status===400);
+  await assert.rejects(assessor.recommendation('recommend',{scenarioId:scenario.id,assessmentId:assessment.id,outcome:'invalid',rationale:'Bad'},ctx),e=>e instanceof AppError&&e.status===409);
   await assert.rejects(assessor.assessment('score',{id:assessment.id,expectedVersion:3,criterionId:criterion.rows[0].id,score:8,evidence:'Late'},ctx),e=>e instanceof AppError&&e.status===409);
  }finally{await Promise.all([owner.close(),assessor.close()]);await db.end();}
 });
