@@ -1,4 +1,5 @@
 import pg from 'pg';
+import {evaluateCommitteeQuorum} from './committee-quorum.js';
 import {validateScenarioConstraints,evaluateScenarioConstraint,rankScenarioCandidates} from './scenario-constraints.js';
 import { randomUUID } from 'node:crypto';
 
@@ -420,6 +421,29 @@ export function createStore({ connectionString, tenantId, actorId }) {
         candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
     },{context});
   }
+  async function committeeSessionEvaluation(context, sessionId) {
+    uuid(sessionId,'sessionId');
+    return transaction(async client => {
+      const session=await one(client,`SELECT * FROM m06_governance.committee_session
+        WHERE tenant_id=platform.current_tenant() AND id=$1`,[sessionId]);
+      const chair=await one(client,`SELECT chair_id FROM m06_governance.decision_body
+        WHERE tenant_id=platform.current_tenant() AND id=$1`,[session.decision_body_id]);
+      if(chair.chair_id!==context.actorId && session.recorded_by!==context.actorId)
+        throw new AppError(403,'Session chair or recorder required');
+      const participants=(await client.query(`SELECT principal_id,attended,conflict_declared,recused,vote
+        FROM m06_governance.committee_participant WHERE tenant_id=platform.current_tenant()
+        AND session_id=$1`,[sessionId])).rows;
+      const delegates=(await client.query(`SELECT DISTINCT delegate_id FROM m06_governance.delegation
+        WHERE tenant_id=platform.current_tenant() AND decision_body_id=$1
+        AND effective_during @> $2::timestamptz`,[session.decision_body_id,session.held_at])).rows;
+      const eligiblePrincipalIds=delegates.map(r=>r.delegate_id);
+      const summary=evaluateCommitteeQuorum({required:session.quorum_required,
+        participants:participants.map(p=>({principalId:p.principal_id,attended:p.attended,
+          conflictDeclared:p.conflict_declared,recused:p.recused,vote:p.vote})),eligiblePrincipalIds});
+      return {sessionId,decisionBodyId:session.decision_body_id,investmentId:session.investment_id,
+        heldAt:session.held_at,summary};
+    },{context});
+  }
   async function scenarioOverride(action, body, context) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
     return transaction(async client => {
@@ -775,7 +799,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, close: () => pool.end() };
 }
 
 export function httpError(error) {
