@@ -42,16 +42,16 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   assert.equal(result.commitmentReady,false);
   const payload={conditionId:condition.rows[0].id,result:'satisfied',evidenceReference:'synthetic:independent-proof'};
   await assert.rejects(verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier}),e=>e instanceof AppError&&e.status===403);
-  const direct=async (actingAs,verifiedBy,verifiedAt=null)=>{
+  const direct=async (actingAs,verifiedBy,verifiedAt=null,mandateId=null)=>{
     const client=new pg.Client({connectionString:process.env.SPM_TEST_DATABASE_URL});
     await client.connect();
     try {
       await client.query('BEGIN');
       await client.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true)",[tenant,actingAs]);
       return await client.query(`INSERT INTO m05_investment.condition_verification
-        (tenant_id,condition_id,verified_by,result,evidence_reference,verified_at)
-        VALUES($1,$2,$3,'satisfied','synthetic:direct-bypass',COALESCE($4::timestamptz,now()))
-        RETURNING verified_at`,[tenant,condition.rows[0].id,verifiedBy,verifiedAt]);
+        (tenant_id,condition_id,verified_by,result,evidence_reference,verified_at,mandate_id)
+        VALUES($1,$2,$3,'satisfied','synthetic:direct-bypass',COALESCE($4::timestamptz,now()),$5)
+        RETURNING verified_at,mandate_id`,[tenant,condition.rows[0].id,verifiedBy,verifiedAt,mandateId]);
     } finally {await client.query('ROLLBACK');await client.end();}
   };
   await assert.rejects(direct(verifier,verifier),/Effective verifier mandate required/);
@@ -61,9 +61,11 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
     [tenant,verifier,approver,'Test mandate for independent condition evidence verification']);
   const evidence=await verifierStore.verifyDecisionCondition(payload,{tenantId:tenant,actorId:verifier});
   assert.equal(evidence.result,'satisfied');
-  const forgedTime=await direct(verifier,verifier,'9999-01-01T00:00:00Z');
+  assert.equal(evidence.mandate_id,mandate.rows[0].id);
+  const forgedTime=await direct(verifier,verifier,'9999-01-01T00:00:00Z',randomUUID());
   assert.ok(forgedTime.rows[0].verified_at.getTime()<=Date.now());
   assert.ok(forgedTime.rows[0].verified_at.getTime()>=Date.now()-60_000);
+  assert.equal(forgedTime.rows[0].mandate_id,mandate.rows[0].id);
   await assert.rejects(direct(actor,verifier),/Verification actor and tenant context required/);
   result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,0);
