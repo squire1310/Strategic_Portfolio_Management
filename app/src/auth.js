@@ -39,7 +39,7 @@ export function createAuth(users, { groupMappings = {}, requireGroups = false } 
     const entitlements = user.groupIds ? resolveGroups(user.groupIds) : { commands: commandsForRole(user.role) };
     byName.set(user.username, { username: user.username, displayName: user.displayName || user.username,
       tenantId: user.tenantId, actorId: user.actorId, role: user.role, passwordHash: user.passwordHash,
-      groupIds: user.groupIds || [], allowedCommands: entitlements.commands });
+      groupIds: user.groupIds || [], requireGroups, allowedCommands: entitlements.commands });
   }
   const sessions = new Map();
   const failures = new Map();
@@ -72,12 +72,19 @@ export function createAuth(users, { groupMappings = {}, requireGroups = false } 
     if (session.expires <= Date.now()) { sessions.delete(token); return null; }
     const current = byName.get(session.user.username);
     if (!current) return null;
-    const refreshed = current.groupIds.length ? resolveGroups(current.groupIds).commands : current.allowedCommands;
-    return { token, user: publicUser({ ...current, allowedCommands: refreshed }), context: { tenantId: current.tenantId, actorId: current.actorId } };
+    const refreshed = current.requireGroups ? resolveGroups(current.groupIds).commands : current.allowedCommands;
+    return { token, user: publicUser({ ...current, allowedCommands: refreshed }), context: { tenantId: current.tenantId, actorId: current.actorId }, hasAppAccess: !current.requireGroups || resolveGroups(current.groupIds).bundles.length > 0 };
   }
 
   function logout(token) { if (token) sessions.delete(token); }
-  return { login, resolve, logout };
+  // Test-only membership simulation: changed memberships are resolved on the next request.
+  function updatePrototypeGroups(username, groupIds) {
+    const current = byName.get(username);
+    if (!current || !current.requireGroups) throw new Error('Prototype group update unavailable');
+    validatePrototypeAccount({ groupIds });
+    current.groupIds = [...groupIds];
+  }
+  return { login, resolve, logout, updatePrototypeGroups };
 }
 
 function publicUser(user) { return { username: user.username, displayName: user.displayName,
