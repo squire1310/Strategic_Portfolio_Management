@@ -338,23 +338,40 @@ export function createStore({ connectionString, tenantId, actorId }) {
     investments: 'm05_investment.investment', memberships: 'm02_portfolio.portfolio_membership',
     alignments: 'm02_portfolio.portfolio_objective'
   };
-  async function workspace(context, readKeys = null) {
+  const portfolioPredicate = {
+    portfolios: 'id = ANY($1::uuid[])',
+    memberships: 'portfolio_id = ANY($1::uuid[])',
+    alignments: 'portfolio_id = ANY($1::uuid[])',
+    investments: `EXISTS (SELECT 1 FROM m02_portfolio.portfolio_membership pm
+      WHERE pm.tenant_id=platform.current_tenant() AND pm.investment_id=investment.id AND pm.portfolio_id = ANY($1::uuid[]))`
+  };
+  async function workspace(context, readKeys = null, portfolioIds = null) {
     return transaction(async client => {
       const data = {};
       for (const [key, table] of Object.entries(tables)) {
         if (readKeys !== null && !readKeys.includes(key)) { data[key] = []; continue; }
-        data[key] = (await client.query(`SELECT * FROM ${table} WHERE tenant_id=platform.current_tenant() ORDER BY 1,2 LIMIT 500`)).rows;
+        if (portfolioIds !== null && key === 'categories') { data[key] = []; continue; }
+        if (portfolioIds !== null && !portfolioPredicate[key] && ['portfolios', 'memberships', 'alignments', 'investments'].includes(key)) { data[key] = []; continue; }
+        const sql = portfolioIds !== null && portfolioPredicate[key]
+          ? `SELECT * FROM ${table} WHERE tenant_id=platform.current_tenant() AND ${portfolioPredicate[key]} ORDER BY 1,2 LIMIT 500`
+          : `SELECT * FROM ${table} WHERE tenant_id=platform.current_tenant() ORDER BY 1,2 LIMIT 500`;
+        data[key] = (await client.query(sql, portfolioIds !== null && portfolioPredicate[key] ? [portfolioIds] : [])).rows;
       }
       return data;
     }, { context });
   }
-  async function history(schema, table, id, context, readKeys = null) {
+  async function history(schema, table, id, context, readKeys = null, portfolioIds = null) {
     const full = `${schema}.${table}`;
     const key = Object.keys(tables).find(k => tables[k] === full);
     if (!key) throw new AppError(404, 'Unknown entity type');
     if (readKeys !== null && !readKeys.includes(key)) throw new AppError(404, 'Record not found');
     uuid(id, 'id');
     return transaction(async client => {
+      if (portfolioIds !== null) {
+        if (!portfolioPredicate[key]) throw new AppError(404, 'Record not found');
+        const accessible = await client.query(`SELECT 1 FROM ${full} WHERE tenant_id=platform.current_tenant() AND id=$2 AND ${portfolioPredicate[key].replaceAll('$1', '$1')} LIMIT 1`, [portfolioIds, id]);
+        if (!accessible.rowCount) throw new AppError(404, 'Record not found');
+      }
       const revisions = (await client.query(`SELECT version_no,lower(recorded_during) AS recorded_at,valid_during,payload,operation,actor_id
         FROM platform.entity_revision WHERE tenant_id=platform.current_tenant() AND schema_name=$1 AND table_name=$2 AND entity_id=$3
         ORDER BY version_no`, [schema, table, id])).rows;
