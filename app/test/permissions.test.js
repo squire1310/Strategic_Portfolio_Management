@@ -14,6 +14,7 @@ const expected = {
   engagement_lead: ['investment', 'investment-update', 'investment-retire',
     'membership', 'membership-update', 'membership-remove', 'condition-submit'],
   verifier: ['condition-verify'],
+  condition_recorder: ['condition-create'],
   viewer: []
 };
 

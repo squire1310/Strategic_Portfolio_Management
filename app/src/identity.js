@@ -29,12 +29,12 @@ const STRATEGY_READS = Object.freeze(['strategies', 'objectives', 'outcomes', 'm
 const PORTFOLIO_READS = Object.freeze(['portfolios', 'categories', 'investments', 'memberships', 'alignments']);
 const READ_BUNDLES = Object.freeze({
   executive: STRATEGY_READS, policy: STRATEGY_READS, portfolio_manager: PORTFOLIO_READS,
-  engagement_lead: PORTFOLIO_READS, verifier: PORTFOLIO_READS,
+  engagement_lead: PORTFOLIO_READS, verifier: PORTFOLIO_READS, condition_recorder: PORTFOLIO_READS,
   viewer: [...STRATEGY_READS, ...PORTFOLIO_READS]
 });
 const ROLE_BUNDLES = Object.freeze({
   executive: true, policy: true, portfolio_manager: true,
-  engagement_lead: true, verifier: true, viewer: true
+  engagement_lead: true, verifier: true, condition_recorder: true, viewer: true
 });
 
 export function prototypeModeAllowed(env = process.env) {

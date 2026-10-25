@@ -14,6 +14,7 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
  await admin.query('BEGIN');
  await admin.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true),set_config('app.request_id',$3,true)",[tenant,actor,randomUUID()]);
  const store=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId:tenant,actorId:actor});
+ const recorderStore=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId:tenant,actorId:approver});
  const verifierStore=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId:tenant,actorId:verifier});
  const otherStore=createStore({connectionString:process.env.SPM_TEST_DATABASE_URL,tenantId:otherTenant,actorId:otherActor});
  try {
@@ -28,15 +29,42 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
   const body=await admin.query('INSERT INTO m06_governance.decision_body(tenant_id,code,name,remit,chair_id) VALUES($1,$2,$3,$4,$5) RETURNING id',[tenant,'condbody_'+suffix ,'Condition body','Testing',approver]);
   const decision=await admin.query(`INSERT INTO m05_investment.investment_decision
     (tenant_id,decision_body_id,decided_by,investment_id,subject_type,subject_id,decision_type,rationale,decided_at,effective_on)
-    VALUES($1,$2,$3,$4,'investment',$4,'defer','Evidence pending',now(),CURRENT_DATE) RETURNING id`,
+    VALUES($1,$2,$3,$4,'investment',$4,'condition','Evidence pending',now(),CURRENT_DATE) RETURNING id`,
     [tenant,body.rows[0].id,approver,investment.id]);
-  const condition=await admin.query(`INSERT INTO m05_investment.decision_condition
-    (tenant_id,decision_id,condition_type,description)
-    VALUES($1,$2,'precedent','Provide statutory clearance') RETURNING id`,[tenant,decision.rows[0].id]);
-  const subsequent=await admin.query(`INSERT INTO m05_investment.decision_condition
-    (tenant_id,decision_id,condition_type,description,due_on)
-    VALUES($1,$2,'subsequent','Submit ongoing monitoring report',CURRENT_DATE-1) RETURNING id`,[tenant,decision.rows[0].id]);
+  const rejected=await admin.query(`INSERT INTO m05_investment.investment_decision
+    (tenant_id,decision_body_id,decided_by,investment_id,subject_type,subject_id,decision_type,rationale,decided_at,effective_on)
+    VALUES($1,$2,$3,$4,'investment',$4,'reject','Not authorised',now(),CURRENT_DATE) RETURNING id`,
+    [tenant,body.rows[0].id,approver,investment.id]);
   await admin.query('COMMIT');
+  const condition={rows:[await recorderStore.recordDecisionCondition({decisionId:decision.rows[0].id,
+    conditionType:'precedent',description:'Provide statutory clearance'},
+    {tenantId:tenant,actorId:approver})]};
+  const dueOn=(await admin.query("SELECT to_char(CURRENT_DATE-1,'YYYY-MM-DD') AS due_on")).rows[0].due_on;
+  const subsequent={rows:[await recorderStore.recordDecisionCondition({decisionId:decision.rows[0].id,
+    conditionType:'subsequent',description:'Submit ongoing monitoring report',dueOn},
+    {tenantId:tenant,actorId:approver})]};
+  assert.equal(condition.rows[0].recorded_by,approver);
+  assert.equal((await recorderStore.decisionConditionReadiness({tenantId:tenant,actorId:approver},decision.rows[0].id)).outstandingPrecedents,1);
+  await assert.rejects(recorderStore.recordDecisionCondition({decisionId:rejected.rows[0].id,
+    conditionType:'precedent',description:'Invalid rejected obligation'},
+    {tenantId:tenant,actorId:approver}),e=>e instanceof AppError&&e.status===409);
+  await assert.rejects(store.recordDecisionCondition({decisionId:decision.rows[0].id,
+    conditionType:'precedent',description:'Owner cannot record this obligation'},
+    {tenantId:tenant,actorId:actor}),e=>e instanceof AppError&&e.status===403);
+  await admin.query('BEGIN');
+  await admin.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true)",[tenant,approver]);
+  await assert.rejects(admin.query(`INSERT INTO m05_investment.decision_condition
+    (tenant_id,decision_id,condition_type,description)
+    VALUES($1,$2,'precedent','Direct rejected obligation')`,[tenant,rejected.rows[0].id]),
+    /Only approving or conditional investment decisions may carry conditions/);
+  await admin.query('ROLLBACK');
+  await admin.query('BEGIN');
+  await admin.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.actor_id',$2,true)",[tenant,actor]);
+  await assert.rejects(admin.query(`INSERT INTO m05_investment.decision_condition
+    (tenant_id,decision_id,condition_type,description)
+    VALUES($1,$2,'precedent','Direct owner bypass')`,[tenant,decision.rows[0].id]),
+    /Decision maker must record conditions/);
+  await admin.query('ROLLBACK');
   let result=await store.decisionConditionReadiness({tenantId:tenant,actorId:actor},decision.rows[0].id);
   assert.equal(result.outstandingPrecedents,1);
   assert.equal(result.outstandingSubsequents,1);
@@ -163,5 +191,5 @@ test('B012 outstanding precedent blocks readiness and evidence does not effectua
     [tenant,actor,approver,'Test mandate must not permit investment owner self verification']);
   await assert.rejects(store.verifyDecisionCondition(payload,{tenantId:tenant,actorId:actor}),e=>e instanceof AppError&&e.status===403);
   await assert.rejects(direct(actor,actor),/Independent verifier required/);
- } finally {await store.close();await verifierStore.close();await otherStore.close();await admin.end();}
+ } finally {await store.close();await recorderStore.close();await verifierStore.close();await otherStore.close();await admin.end();}
 });

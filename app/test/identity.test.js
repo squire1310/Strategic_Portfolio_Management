@@ -72,6 +72,29 @@ test('condition evidence submission requires the submitter entitlement', async (
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
+test('condition creation requires the recorder entitlement', async () => {
+  const calls = [];
+  const store = { recordDecisionCondition: async (body, context) => { calls.push({ body, context }); return { id: 'condition' }; } };
+  const auth = createAuth([
+    { ...account, username: 'condition-recorder', role: 'condition_recorder', groupIds: undefined },
+    { ...account, username: 'condition-verifier', role: 'verifier', groupIds: undefined }
+  ]);
+  const server = createHttpServer(store, { auth });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    for (const [username, status] of [['condition-verifier', 403], ['condition-recorder', 201]]) {
+      const login = await fetch(origin + '/api/login', { method: 'POST', headers: { origin, 'content-type': 'application/json' },
+        body: JSON.stringify({ username, password }) });
+      const cookie = login.headers.get('set-cookie').split(';')[0];
+      const response = await fetch(origin + '/api/conditions/create', { method: 'POST',
+        headers: { cookie, origin, 'content-type': 'application/json' }, body: JSON.stringify({ decisionId: ACTOR }) });
+      assert.equal(response.status, status);
+    }
+    assert.equal(calls.length, 1);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
 test('condition status and evidence history are available to participant roles only', async () => {
   const calls = [];
   const store = {
@@ -81,13 +104,15 @@ test('condition status and evidence history are available to participant roles o
   const auth = createAuth([
     { ...account, username: 'status-owner', role: 'engagement_lead', groupIds: undefined },
     { ...account, username: 'status-verifier', role: 'verifier', groupIds: undefined },
+    { ...account, username: 'status-recorder', role: 'condition_recorder', groupIds: undefined },
     { ...account, username: 'status-viewer', role: 'viewer', groupIds: undefined }
   ]);
   const server = createHttpServer(store, { auth });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + server.address().port;
   try {
-    for (const [username, status] of [['status-owner', 200], ['status-verifier', 200], ['status-viewer', 403]]) {
+    for (const [username, status] of [['status-owner', 200], ['status-verifier', 200],
+      ['status-recorder', 200], ['status-viewer', 403]]) {
       const login = await fetch(origin + '/api/login', { method: 'POST', headers: { origin, 'content-type': 'application/json' },
         body: JSON.stringify({ username, password }) });
       const cookie = login.headers.get('set-cookie').split(';')[0];
@@ -96,7 +121,7 @@ test('condition status and evidence history are available to participant roles o
       const history = await fetch(origin + `/api/conditions/${ACTOR}/history`, { headers: { cookie } });
       assert.equal(history.status, status);
     }
-    assert.equal(calls.length, 4);
+    assert.equal(calls.length, 6);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 

@@ -19,7 +19,8 @@ DECLARE actor_id uuid; strategy_id uuid; objective_id uuid; portfolio_id uuid; c
         decision_id uuid; reject_decision_id uuid; v_baseline_id uuid; successor_id uuid;
         partial_id uuid; partial_decision_id uuid; other_actor uuid; approver_id uuid;
         delegate_id uuid; delegated_decision_id uuid; self_body_id uuid;
-        blocked boolean;
+        condition_id uuid; verifier_id uuid; submission_id uuid;
+        blocked boolean; error_message text;
 BEGIN
   actor_id := platform.current_actor();
   INSERT INTO platform.principal(subject,display_name)
@@ -221,10 +222,52 @@ BEGIN
      subject_id,decision_type,rationale,decided_at,effective_on)
     VALUES(platform.current_tenant(),body_id,approver_id,investment_id,investment_recommendation_id,
       'investment',investment_id,'condition','Review later',clock_timestamp(),'2026-01-01');
+  INSERT INTO m05_investment.decision_condition
+    (tenant_id,decision_id,condition_type,description)
+    VALUES(platform.current_tenant(),decision_id,'precedent','Independent clearance required')
+    RETURNING id INTO condition_id;
+  blocked := false;
+  BEGIN
+    INSERT INTO m05_investment.commitment
+      (tenant_id,investment_id,approving_decision_id,commitment_type,numeric_limit,unit,effective_during)
+      VALUES(platform.current_tenant(),investment_id,decision_id,'funding',100000,'GBP',
+        daterange('2026-01-01','2027-01-01','[)'));
+  EXCEPTION WHEN raise_exception THEN
+    GET STACKED DIAGNOSTICS error_message = MESSAGE_TEXT;
+    blocked := error_message='Uncleared precedent blocks commitment release';
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'uncleared precedent did not block commitment'; END IF;
+  INSERT INTO platform.principal(subject,display_name)
+    VALUES('schema-smoke:verifier','Independent verifier') RETURNING principal_id INTO verifier_id;
+  INSERT INTO platform.tenant_member(tenant_id,principal_id,member_role)
+    VALUES(platform.current_tenant(),verifier_id,'contributor');
+  INSERT INTO m05_investment.condition_verifier_mandate
+    (tenant_id,principal_id,granted_by,effective_during,reason)
+    VALUES(platform.current_tenant(),verifier_id,approver_id,
+      tstzrange(now()-interval '1 hour',now()+interval '1 day','[)'),
+      'Independent verifier for smoke condition clearance');
+  PERFORM set_config('app.actor_id',actor_id::text,true);
+  INSERT INTO m05_investment.condition_evidence_submission
+    (tenant_id,condition_id,submitted_by,evidence_reference)
+    VALUES(platform.current_tenant(),condition_id,actor_id,'synthetic:smoke-clearance')
+    RETURNING id INTO submission_id;
+  PERFORM set_config('app.actor_id',verifier_id::text,true);
+  INSERT INTO m05_investment.condition_verification
+    (tenant_id,condition_id,verified_by,result,submission_id)
+    VALUES(platform.current_tenant(),condition_id,verifier_id,'satisfied',submission_id);
+  PERFORM set_config('app.actor_id',approver_id::text,true);
   INSERT INTO m05_investment.commitment
     (tenant_id,investment_id,approving_decision_id,commitment_type,numeric_limit,unit,effective_during)
     VALUES(platform.current_tenant(),investment_id,decision_id,'funding',100000,'GBP',
       daterange('2026-01-01','2027-01-01','[)'));
+  blocked := false;
+  BEGIN
+    INSERT INTO m05_investment.decision_condition
+      (tenant_id,decision_id,condition_type,description)
+      VALUES(platform.current_tenant(),decision_id,'subsequent','Late obligation');
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'late condition was accepted after commitment'; END IF;
   PERFORM set_config('app.actor_id',actor_id::text,true);
   INSERT INTO m06_governance.baseline(tenant_id,portfolio_id,baseline_type,label,created_by,valid_during)
     VALUES(platform.current_tenant(),portfolio_id,'portfolio','FY26',actor_id,
