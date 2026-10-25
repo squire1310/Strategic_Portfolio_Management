@@ -476,6 +476,24 @@ export function createStore({ connectionString, tenantId, actorId }) {
           AND assignee_id=platform.current_actor()`,[id]);
         return {proposal:updated,revision};
       }
+      if(action === 'accept') {
+        if (current.submitted_by === context.actorId) throw new AppError(403,'Independent intake acceptance required');
+        if (current.status !== 'triage') throw new AppError(409,'Demand must complete triage first');
+        const updated=await one(client,`UPDATE m03_demand.demand SET status='accepted'
+          WHERE tenant_id=platform.current_tenant() AND id=$1 RETURNING *`,[id]);
+        return {proposal:updated};
+      }
+      if(action === 'promote') {
+        if(current.status !== 'accepted') throw new AppError(409,'Only accepted demand can be promoted');
+        const existing=await client.query(`SELECT id FROM m05_investment.investment
+          WHERE tenant_id=platform.current_tenant() AND origin_demand_id=$1`,[id]);
+        if(existing.rowCount) throw new AppError(409,'Demand already promoted');
+        const investment=await one(client,`INSERT INTO m05_investment.investment
+          (tenant_id,origin_demand_id,category_id,code,title,sponsor_id,owner_id)
+          VALUES(platform.current_tenant(),$1,$2,$3,$4,$5,platform.current_actor()) RETURNING *`,
+          [id,uuid(body.categoryId,'categoryId'),code(body.code),current.title,current.sponsor_id]);
+        return {proposal:current,investment};
+      }
       if(action === 'review') {
         if(current.submitted_by === context.actorId) throw new AppError(403,'Independent reviewer required');
         if(current.status !== 'submitted') throw new AppError(409,'Proposal not awaiting review');
