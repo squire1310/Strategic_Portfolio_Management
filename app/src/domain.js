@@ -422,6 +422,31 @@ export function createStore({ connectionString, tenantId, actorId }) {
         candidates:rankScenarioCandidates(candidates.map(c=>({id:c.id,score:Number(c.aggregate_score)})),scenario.constraint_set)};
     },{context});
   }
+  async function verifyDecisionCondition(body,context) {
+    if(!body||typeof body!=='object'||Array.isArray(body)) throw new AppError(400,'Verification required');
+    const id=uuid(body.conditionId,'conditionId');
+    const result=requiredText(body.result,'result',30);
+    if(!['satisfied','not_satisfied'].includes(result)) throw new AppError(400,'Invalid verification result');
+    const evidence=requiredText(body.evidenceReference,'evidenceReference',500);
+    return transaction(async client=>{
+      const condition=await one(client,`SELECT c.id,d.decided_by,i.owner_id,i.sponsor_id
+        FROM m05_investment.decision_condition c
+        JOIN m05_investment.investment_decision d ON d.tenant_id=c.tenant_id AND d.id=c.decision_id
+        LEFT JOIN m05_investment.investment i ON i.tenant_id=d.tenant_id AND i.id=d.investment_id
+        WHERE c.tenant_id=platform.current_tenant() AND c.id=$1`,[id]);
+      if([condition.decided_by,condition.owner_id,condition.sponsor_id].includes(context.actorId))
+        throw new AppError(403,'Independent verifier required');
+      const mandate=await client.query(`SELECT 1 FROM m05_investment.condition_verifier_mandate
+        WHERE tenant_id=platform.current_tenant() AND principal_id=platform.current_actor()
+        AND effective_during @> transaction_timestamp()
+        AND (revoked_at IS NULL OR revoked_at>transaction_timestamp()) LIMIT 1`);
+      if(!mandate.rowCount) throw new AppError(403,'Effective verifier mandate required');
+      return one(client,`INSERT INTO m05_investment.condition_verification
+        (tenant_id,condition_id,verified_by,result,evidence_reference)
+        VALUES(platform.current_tenant(),$1,platform.current_actor(),$2,$3) RETURNING *`,
+        [id,result,evidence]);
+    },{write:true,context});
+  }
   async function decisionConditionReadiness(context, decisionId) {
     uuid(decisionId,'decisionId');
     return transaction(async client => {
@@ -914,7 +939,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
       };
     }, { context });
   }
-  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, recordInvestmentDecision, decisionConditionReadiness, close: () => pool.end() };
+  return { command, workspace, history, assignedScopes, workItem, proposal, proposalList, assessment, assessmentResults, recommendation, scenarioRanking, scenarioOverride, committeeSessionEvaluation, recordCommitteeSession, committeeDecisionReadiness, recordInvestmentDecision, decisionConditionReadiness, verifyDecisionCondition, close: () => pool.end() };
 }
 
 export function httpError(error) {
