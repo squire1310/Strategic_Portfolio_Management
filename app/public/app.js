@@ -341,7 +341,18 @@ async function loadProposals() {
       show('Proposal submitted.');await loadProposals();
     }catch(e){show(e.message,'error');}});box.append(button);
    }
-   if(endpoint==='review-queue'){
+   if(endpoint==='mine'&&item.status==='accepted'){
+    const category=document.createElement('select');category.className='govuk-select';category.setAttribute('aria-label','Investment category for '+item.title);
+    for(const c of workspace.categories||[]){const o=document.createElement('option');o.value=c.id;o.textContent=c.label||c.code;category.append(o);}box.append(category);
+    const code=document.createElement('input');code.className='govuk-input';code.placeholder='New investment code';code.setAttribute('aria-label','Investment code for '+item.title);box.append(code);
+    const button=document.createElement('button');button.className='govuk-button';button.textContent='Create candidate investment';button.addEventListener('click',async()=>{try{
+      await proposalRequest('promote',{id:item.id,expectedVersion:item.row_version,categoryId:category.value,code:code.value});show('Candidate investment created.');await loadProposals();
+    }catch(e){show(e.message,'error');}});box.append(button);
+   }
+   if(endpoint==='review-queue'&&item.status==='triage'){
+    const button=document.createElement('button');button.className='govuk-button';button.textContent='Accept demand for candidate creation';button.addEventListener('click',async()=>{try{await proposalRequest('accept',{id:item.id,expectedVersion:item.row_version});show('Demand accepted.');await loadProposals();}catch(e){show(e.message,'error');}});box.append(button);
+   }
+   if(endpoint==='review-queue'&&item.status==='submitted'){
     const feedback=document.createElement('textarea');feedback.className='govuk-textarea';feedback.placeholder='Review feedback';feedback.setAttribute('aria-label','Feedback for '+item.title);box.append(feedback);
     for(const [outcome,label] of [['return_for_correction','Return for correction'],['accept_for_assessment','Accept for assessment']]){
       const button=document.createElement('button');button.className='govuk-button govuk-button--secondary';button.textContent=label;
