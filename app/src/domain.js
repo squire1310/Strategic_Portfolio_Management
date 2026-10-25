@@ -515,6 +515,7 @@ export function createStore({ connectionString, tenantId, actorId }) {
         WHERE tenant_id=platform.current_tenant() AND assignee_id=platform.current_actor()
           AND ($1::uuid[] IS NULL OR object_type <> 'portfolio' OR object_id = ANY($1::uuid[]))
           AND ($2::uuid[] IS NULL OR object_type <> 'strategy' OR object_id = ANY($2::uuid[]))
+          AND ($1::uuid[] IS NULL OR object_type <> 'demand')
         ORDER BY due_on NULLS LAST, created_at DESC LIMIT 200`, [portfolioIds,strategyIds])).rows;
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError(400,'JSON object required');
       if (action === 'create') {
