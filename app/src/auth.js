@@ -35,12 +35,14 @@ export function createAuth(users, { groupMappings = {}, requireGroups = false } 
       throw new Error('Invalid or duplicate local account configuration');
     }
     if (user.groupIds !== undefined || requireGroups) validatePrototypeAccount({ ...user, groupIds: user.groupIds ?? [] });
-    if (user.portfolioIds !== undefined && (!Array.isArray(user.portfolioIds) || user.portfolioIds.some(id => !uuid.test(id)))) throw new Error('Invalid prototype portfolio scope');
+    for (const field of ['portfolioIds', 'strategyIds']) {
+      if (user[field] !== undefined && (!Array.isArray(user[field]) || user[field].some(id => !uuid.test(id)))) throw new Error('Invalid prototype object scope');
+    }
     if (requireGroups && !user.groupIds?.length) throw new Error('Prototype accounts must have a mapped group');
     const entitlements = user.groupIds ? resolveGroups(user.groupIds) : { commands: commandsForRole(user.role), readKeys: null };
     byName.set(user.username, { username: user.username, displayName: user.displayName || user.username,
       tenantId: user.tenantId, actorId: user.actorId, role: user.role, passwordHash: user.passwordHash,
-      groupIds: user.groupIds || [], portfolioIds: user.portfolioIds ?? [], requireGroups, allowedCommands: entitlements.commands, readKeys: entitlements.readKeys });
+      groupIds: user.groupIds || [], portfolioIds: user.portfolioIds ?? [], strategyIds: user.strategyIds ?? [], requireGroups, allowedCommands: entitlements.commands, readKeys: entitlements.readKeys });
   }
   const sessions = new Map();
   const failures = new Map();
@@ -75,7 +77,7 @@ export function createAuth(users, { groupMappings = {}, requireGroups = false } 
     if (!current) return null;
     const entitlement = current.requireGroups ? resolveGroups(current.groupIds) : { commands: current.allowedCommands, readKeys: current.readKeys };
     const refreshed = entitlement.commands;
-    return { token, user: publicUser({ ...current, allowedCommands: refreshed, readKeys: entitlement.readKeys, portfolioIds: current.requireGroups ? current.portfolioIds : null }), context: { tenantId: current.tenantId, actorId: current.actorId }, hasAppAccess: !current.requireGroups || resolveGroups(current.groupIds).bundles.length > 0 };
+    return { token, user: publicUser({ ...current, allowedCommands: refreshed, readKeys: entitlement.readKeys, portfolioIds: current.requireGroups ? current.portfolioIds : null, strategyIds: current.requireGroups ? current.strategyIds : null }), context: { tenantId: current.tenantId, actorId: current.actorId }, hasAppAccess: !current.requireGroups || resolveGroups(current.groupIds).bundles.length > 0 };
   }
 
   function logout(token) { if (token) sessions.delete(token); }
@@ -90,7 +92,7 @@ export function createAuth(users, { groupMappings = {}, requireGroups = false } 
 }
 
 function publicUser(user) { return { username: user.username, displayName: user.displayName,
-  role: user.role, allowedCommands: user.allowedCommands ?? commandsForRole(user.role), readKeys: user.readKeys ?? null, portfolioIds: user.portfolioIds ?? null }; }
+  role: user.role, allowedCommands: user.allowedCommands ?? commandsForRole(user.role), readKeys: user.readKeys ?? null, portfolioIds: user.portfolioIds ?? null, strategyIds: user.strategyIds ?? null }; }
 
 export function authFromEnvironment() {
   prototypeModeAllowed();
