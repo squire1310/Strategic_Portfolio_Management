@@ -445,6 +445,10 @@ export function createStore({ connectionString, tenantId, actorId }) {
         const request=await one(client,`SELECT * FROM m04_selection.scenario_override
           WHERE tenant_id=platform.current_tenant() AND id=$1 FOR UPDATE`,[id]);
         if(request.requested_by===context.actorId) throw new AppError(403,'Independent override decider required');
+        const mandate=await client.query(`SELECT 1 FROM m04_selection.override_mandate WHERE tenant_id=platform.current_tenant()
+          AND principal_id=platform.current_actor() AND effective_during @> transaction_timestamp()
+          AND (revoked_at IS NULL OR revoked_at>transaction_timestamp()) LIMIT 1`);
+        if(!mandate.rowCount) throw new AppError(403,'Effective override mandate required');
         if(request.decision!=='pending') throw new AppError(409,'Override already decided');
         const decision=requiredText(body.decision,'decision',20);
         if(!['approved','rejected'].includes(decision)) throw new AppError(400,'Unsupported override decision');
