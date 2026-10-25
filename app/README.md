@@ -82,3 +82,7 @@ The initial test suite includes [assignments-db.test.js](test/assignments-db.tes
 ### Non-IAM workstream: derived journey status
 
 `GET /api/journey-status` returns a read-only projection of lifecycle states from the current user's scoped workspace. It creates no competing status column, carries canonical source and row version, and conveys no independent approval authority. Initial support covers M01/M02 strategy and portfolio objects, investment lifecycle and observation voiding; additional M03–M06 milestones require their business capabilities. ServiceNow catalogue fulfilment is deferred pending IAM collaboration.
+
+### B005 business work items — initial implementation
+
+Migration [V011](../reconciled-core/migrations/V011__platform_work_items.sql) adds audited and versioned tenant-owned work items for strategy and portfolio business tasks. The local-compatible API supports `GET /api/work-items/inbox`, `POST /api/work-items/create`, `POST /api/work-items/reassign` and `POST /api/work-items/complete`. Assignees must be active tenant members; only the creator may reassign an open task and only the assignee may complete it. The PostgreSQL integration test is [work-items-db.test.js](test/work-items-db.test.js). Prototype-scoped sessions cannot mutate work items pending a complete object-level assignment check. This does not implement access catalogue requests, workflow escalation, approval rights or M03/M04 work items.
